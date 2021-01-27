@@ -19,6 +19,7 @@
 
 #include "geometry_msgs/Twist.h"
 #include "geometry_msgs/TransformStamped.h"
+#include <geometry_msgs/PoseArray.h>
 #include "sensor_msgs/Joy.h"
 #include "nav_msgs/Odometry.h"
 #include "sensor_msgs/NavSatFix.h"
@@ -60,7 +61,7 @@ namespace DRONE {
 		System();
 		~System ();
 
-		void control();
+		geometry_msgs::PoseArray cmdArray;
 		
 		long int count;
 		long int countEKF;
@@ -140,10 +141,10 @@ namespace DRONE {
 		void bootVicon(const double& timeValue);
 		void bootOrbSlam(const double& timeValue);
 		void testTimeout(void);
-
-
+		void ncs();
+		void control();
+		void MAScontrol();
 		
-
 	};		
 }
 

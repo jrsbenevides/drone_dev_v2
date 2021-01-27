@@ -2,7 +2,7 @@
  * droneSystem.cpp
  *
  *  Created on: 16/06/2017
- *      Author: rsinoue
+ *      Authors: rsinoue and jrsbenevides
  *      Modified: João Benevides - Sep/26/2019
  */
 
@@ -14,12 +14,11 @@ namespace DRONE {
 
 	System::System() {
 
-		initDroneSystemParam();	
+		initDroneSystemParam();
 
 		loadTopics(n);
 		
 		loadSettings(n);
-
 	}
 
 	System::~System () {
@@ -239,6 +238,8 @@ namespace DRONE {
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	void System::initDroneSystemParam(void){
 
+		geometry_msgs::Pose p;
+
 		cout << "Starting Drone Node" << endl;
 
 		// Sets flag in order to halt Vicon acquisition and make sure it will be properly initialized once/if called.
@@ -297,6 +298,19 @@ namespace DRONE {
 
 		wAng 			= velMed/amplitude;
 		flagEmergency = 0;
+
+		// Starting cmdArray msg (PoseArray type) to be published
+		p.position.x = 0;
+		p.position.y = 0;
+		p.position.z = 0;
+		p.orientation.x = 0;
+		p.orientation.y = 0;
+		p.orientation.z = 0;
+		p.orientation.w = 0;
+
+		for(int i = 0; i<network.nOfAgents;i++){
+			cmdArray.poses.push_back(p);
+		}
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -515,6 +529,25 @@ namespace DRONE {
 	}	
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: ncs (Networked Control System)
+	*	  Created by: jrsbenevides
+	*  Last Modified:
+	*
+	*  	 Description: 1. Estimates state in a NCS subject to network-induced delay and packet loss
+	*				  2. Computes optimal control
+	*                 3. Sends to Multi-Agent System
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	void System::ncs(){
+		network.ComputeEKF();
+		MAScontrol();
+		if(network.getFlagReadyToSend()){
+			cout << "envio" << endl;
+		}
+	}		
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: control
 	*	  Created by: jrsbenevides
 	*  Last Modified: 13 Sep 2019
@@ -529,6 +562,127 @@ namespace DRONE {
 
 
 	void System::control() {
+
+	  geometry_msgs::Twist cmd_vel_msg;
+	  std_msgs::UInt8 ackControl_msg;
+	  Vector3axes 	position;
+	  Vector4d		xTemp,input;
+
+	  // This if is enabled by user through joystick (DEFAULT = hold SELECT button)
+	  if(drone.getIsFlagEnable()&&(flagEmergency == 0)){ //flagEnable == true
+
+		position = drone.getPosition();
+
+		if(controlSelect.compare("PID") == 0){
+
+			cout << "### PID ###" << endl;
+			
+			// Enters only during first loop after holding joystick button responsible for "flagEnable".
+			if(flagControllerStarted == true){ 
+		  		drone.setXIntError(xTemp.Zero()); // sets integral PID error as zero.
+		  		flagControllerStarted = false;
+	  		}
+		
+		 	input = drone.getPIDControlLaw();
+		
+		} else if(controlSelect.compare("FL") == 0){
+
+			cout << "### Feedback Linearization ###" << endl;
+			
+			input = drone.getFLControlLaw();
+
+		} else if(controlSelect.compare("RLQR") == 0){
+
+			// cout << "### Robust LQR ###" << endl;
+
+			input = drone.getRobustControlLaw();
+
+		} else if(controlSelect.compare("SLQR") == 0){
+
+			cout << "### Standard LQR ###" << endl;
+
+			input = drone.getLQRControlLaw();
+
+		} else if(controlSelect.compare("RecursiveLQR") == 0){
+
+			cout << "### Recursive LQR ###" << endl;
+
+			input = drone.getRecursiveLQRControlLaw();
+
+		} else if(controlSelect.compare("pixelPD") == 0){
+
+			cout << "### PIXEL PD ###" << endl;
+
+			input = drone.getPixelPDControlLaw();
+
+		} else {
+
+			cout << "\n ERROR: Please select a valid controller" << endl;
+
+		}
+
+		drone.inputSaturation(input);
+
+		// cout << "Input:" << input << endl;
+		
+	     cmd_vel_msg.linear.x  = input(0);
+	     cmd_vel_msg.linear.y  = input(1);
+	     cmd_vel_msg.linear.z  = input(2);
+	     cmd_vel_msg.angular.x = 0;            
+	     cmd_vel_msg.angular.y = 0;            
+	     cmd_vel_msg.angular.z = input(3);
+
+	     // Publish input controller
+	     cmd_vel_publisher.publish(cmd_vel_msg);
+		}
+		else{
+
+		flagControllerStarted = true; //Keeps track of flagEnable activation in order to zero PID integral error.
+
+		 cmd_vel_msg.linear.x  = 0;
+	     cmd_vel_msg.linear.y  = 0;
+	     cmd_vel_msg.linear.z  = 0;
+	     cmd_vel_msg.angular.x = 0;            
+	     cmd_vel_msg.angular.y = 0;            
+	     cmd_vel_msg.angular.z = 0;
+
+	     // Publish input controller
+	     cmd_vel_publisher.publish(cmd_vel_msg);
+
+		}
+
+		if(autoMode == 1){
+			if(drone.getIsFlagEnable()){
+				ackControlGlobal = (ackControlGlobal & (~0x03))|0x03;
+			}
+			else{
+				ackControlGlobal = (ackControlGlobal & (~0x03))|0x00;
+			}
+			ackControl_msg.data = ackControlGlobal;
+			ackControl_publisher.publish(ackControl_msg);
+		}
+
+	  	// // Timeout to check if OrbSlam is running
+	  	// if(sensorSelect.compare("ORBSLAM") == 0){
+	  	// 	testTimeout();	
+	  	// }
+	}
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: MAScontrol == MAS Control (Multi-Agent System Control)
+	*	  Created by: jrsbenevides
+	*  Last Modified: 13 Sep 2019
+	*
+	*  	 Description: 1. This is the main control function. It depends on flagEnable (select button to run);
+	*				  2. Gets current position;
+	*				  3. Checks which controller to use. In case of PID, a reset of integral error is necessary and 
+	*					 flagControllerStarted for taking ;
+	*				  4. Gets the provided input publishes it.
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+	void System::MAScontrol() {
 
 	  geometry_msgs::Twist cmd_vel_msg;
 	  std_msgs::UInt8 ackControl_msg;

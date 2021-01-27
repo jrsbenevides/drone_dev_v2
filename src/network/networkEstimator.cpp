@@ -43,6 +43,10 @@ namespace DRONE {
 		estPose[agent] << x;
 	}
 
+	void Estimator::setFlagReadyToSend(const bool& flag){
+		isReadyToSend = flag;
+	}
+
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 	/* ########################################                 GETTERS                 ##########################################*/
@@ -55,6 +59,10 @@ namespace DRONE {
 
 	Vector8d Estimator::getK(void){
 		return K;
+	}
+
+	bool Estimator::getFlagReadyToSend(void){
+		return isReadyToSend;
 	}
 
 	double Estimator::getThisTimeSend(void){
@@ -116,6 +124,7 @@ namespace DRONE {
 
 		flagEnter			= true;
 		flagDebug 			= true;
+		setFlagReadyToSend(false);
 		updateRate          = 0.05; //20Hz
 		isCMHEenabled		= 0;
 		nOfAgents			= 5;

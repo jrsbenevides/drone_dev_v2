@@ -39,10 +39,10 @@ namespace DRONE {
 	  private:
 
 	  	bool    isControlStarted;
-		bool    isFirstTimePass;	  
+		bool    isFirstTimePass;
+		bool 	isReadyToSend;	  
 
 		int 	isCMHEenabled;
-		int 	nOfAgents;
 		int 	bfSize;
 
 		double 	PI;
@@ -53,7 +53,7 @@ namespace DRONE {
 	  	bool flagEnter, flagDebug;
 
 	    int counter; //PARA DEBUG APENAS 
-
+		int	nOfAgents;
 		Vector8d estPose[5]; // 5 = nOfAgents
 
 	  	double stepT, nextTimeToSend, updateRate;
@@ -111,14 +111,16 @@ namespace DRONE {
 		void updateModel(void);
 		void isSinsideTrapezoid(Vector2d& s, const Vector2d& sOld, int agent);
 		
-		void setK(const Vector8d& Kvalue);
-		void setBuffer(const Buffer& msg);
-		void setEstimatePose(const Vector8d& x,const int agent);
+		void 		setK(const Vector8d& Kvalue);
+		void 		setBuffer(const Buffer& msg);
+		void 		setEstimatePose(const Vector8d& x,const int agent);
+		void 		setFlagReadyToSend(const bool& flag);
 
-		Vector8d getEstimatePose(const int agent);
-		Vector8d getK(void);
-		double getThisTimeSend(void);
-		Buffer getBuffer(const int index);
+		Vector8d 	getEstimatePose(const int agent);
+		Vector8d 	getK(void);
+		double 		getThisTimeSend(void);
+		Buffer 		getBuffer(const int index);
+		bool 		getFlagReadyToSend(void);
 	};
 } // namespace DRONE
 
