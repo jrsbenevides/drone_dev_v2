@@ -732,9 +732,9 @@ namespace DRONE {
 		freezeConstant = value;
 	}
 
-	
-
-	
+	void Drone::setControlGain(const Matrix4x8& K){
+		Krlqr = K;
+	}
 
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
@@ -921,6 +921,10 @@ namespace DRONE {
 
 	double Drone::getFreezeConstant(void){
 		return freezeConstant;
+	}	
+	
+	Matrix4x8 Drone::getControlGain(void){
+		return Krlqr;
 	}	
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1309,6 +1313,109 @@ namespace DRONE {
 			return input;
 		}
 
+ 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: update RLQR Gain
+	*	  Created by: jrsbenevides
+	*  Last Modified: jrsbenevides - dxDesired instead of dx on input.
+	*
+	*  	 Description: 1. Stores current position and orientation (yaw) error, derivative position and orientation, second derivative position and orientation desireds;
+	*				  2. Stores "xError" and "dxError" in "x";
+	* 				  3. Initiates and Defines the covariance state nois matrix and the covariance noise observer matrix;
+	*                 4. Initiates the "L" matrix from RLQR;
+	*				  5. Initiates the RLQR gain;
+	* 				  6. Defines the augmentad state space and stores in "Acont" and "Bcont";
+	*				  7. Prints "Acont" and "Bcont";
+	*				  8. Converts the continuous model ("Acont" and "Bcont") to a discrete model ans stores in "Adisc" and "Bdisc";
+	*				  9. Prints "Adisc" and "Bdisc";
+	*				  10. Calls the RLQR() function with the parameters obtained as arguments and updates "L", "Krlqr" and "P";
+	*				  11. Computes the RLQR control law and prints it;
+	*				  12. Computes the 4x1 input vector based on the formulation obtained from state space error method;
+	*				  13. Prints the input vector;
+	*                 14. Stabilishes a condition, with 'threshold', that defines a tolerance for position error;
+	*                 15. Saturates each element of the input vector based on limits of the real actuator;
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	void Drone::updateRLQRGain(void) {
+
+			Vector4d xError,dxError,dx, dxDesired, d2xDesired;
+			Vector8d x;
+
+			xError.head(3) = positionError;
+			xError(3) = yawError;
+
+			dx.head(3) = dPosition;
+			dx(3) = dYaw;
+
+			dxError.head(3) = dPositionError;
+			dxError(3) = dYawError;
+
+			dxDesired.head(3) = dPositionDesired;
+			dxDesired(3) 	  = dYawDesired;
+
+			d2xDesired.head(3) = d2PositionDesired;
+			d2xDesired(3) = d2YawDesired;
+
+			x << dxError, xError;
+
+			Matrix4d Rr;
+			Matrix8d Acont,Adisc,Qr,L;
+			Matrix8x4 Bcont,Bdisc;
+			Matrix4x8 K;
+
+
+			Rr << 1.0, 0.0, 0.0, 0.0,
+				  0.0, 1.0, 0.0, 0.0,
+				  0.0, 0.0, 1.0, 0.0,
+				  0.0, 0.0, 0.0, 1.0;
+
+			Rr = 0.15*Rr;
+
+			Qr << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0, 0.0,
+				  0.0, 1.0, 0.0, 0.0, 0.0, 0.0,  0.0, 0.0,
+				  0.0, 0.0, 1.0, 0.0, 0.0, 0.0,  0.0, 0.0,
+				  0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  0.0, 0.0,
+				  0.0, 0.0, 0.0, 0.0, 1.0, 0.0,  0.0, 0.0,
+				  0.0, 0.0, 0.0, 0.0, 0.0, 1.0,  0.0, 0.0,
+				  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0,
+				  0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0, 5.0;
+
+			Qr = 1e-1*Qr;
+
+			K = K.Zero();
+
+			Acont << -F2*Rotation.transpose(), MatrixXd::Zero(4,4),
+					 MatrixXd::Identity(4,4),  MatrixXd::Zero(4,4);
+
+			Bcont << MatrixXd::Identity(4,4),
+					 MatrixXd::Zero(4,4);
+
+			Conversion::c2d(Adisc,Bdisc,Acont,Bcont,0.02); //UPDATE RATE --DEBUG
+
+			RecursiveLQR(K,Adisc,Bdisc,Rr,Qr);
+
+			setControlGain(K);
+		
+			// u = Klqr*x; 
+			
+			// input = F1.inverse()*(u + d2xDesired + F2*Rotation.transpose()*dxDesired);
+
+			// for(int i=0; i < 4;i++){
+
+			// 	if(abs(xError(i)) < threshold(i)){
+			// 		input(i) = 0.0;
+			// 	}
+
+			// 	if(abs(input(i)) > inputRange(i)){
+			// 		if(input(i) > 0){
+			// 			input(i) = inputRange(i);
+			// 		} else {
+			// 			input(i) = -inputRange(i);
+			// 		}
+			// 	}
+			// }
+		}
+
 	
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: get Robust Control Law
@@ -1397,7 +1504,7 @@ namespace DRONE {
 			// 	if(abs(input(i)) > inputRange(i)){
 			// 		if(input(i) > 0){
 			// 			input(i) = inputRange(i);
-			// 		} else {
+			// 		} else {System
 			// 			input(i) = -inputRange(i);
 			// 		}
 			// 	}
@@ -1486,6 +1593,60 @@ namespace DRONE {
 			// }			
 			return input;
 		}
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: MASControlInput 
+	*	  Created by: jrsbenevides
+	*  Last Modified: jrsbenevides - dxDesired instead of dx on input.
+	*
+	*  	 Description: Based on the estimated state, compute the optimal control with u*=Kx*
+	*				  1. Stores current position and orientation (yaw) error, derivative position and orientation, second derivative position and orientation desireds;
+	*				  2. Stores "xError" and "dxError" in "x";
+	* 				  3. Initiates and Defines the covariance state nois matrix and the covariance noise observer matrix;
+	*                 4. Initiates the "L" matrix from RLQR;
+	*				  5. Initiates the RLQR gain;
+	* 				  6. Defines the augmentad state space and stores in "Acont" and "Bcont";
+	*				  7. Prints "Acont" and "Bcont";
+	*				  8. Converts the continuous model ("Acont" and "Bcont") to a discrete model ans stores in "Adisc" and "Bdisc";
+	*				  9. Prints "Adisc" and "Bdisc";
+	*				  10. Calls the RLQR() function with the parameters obtained as arguments and updates "L", "Krlqr" and "P";
+	*				  11. Computes the RLQR control law and prints it;
+	*				  12. Computes the 4x1 input vector based on the formulation obtained from state space error method;
+	*				  13. Prints the input vector;
+	*                 14. Stabilishes a condition, with 'threshold', that defines a tolerance for position error;
+	*                 15. Saturates each element of the input vector based on limits of the real actuator;
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
+
+	Vector4d Drone::MASControlInput(const Vector8d& q){	
+
+		Vector4d xDesired,dxDesired, d2xDesired,u,input;
+		Vector8d x,qDesired;
+
+		xDesired.head(3) 	= positionDesired;
+		xDesired(3) 		= yawDesired;
+
+		dxDesired.head(3) 	= dPositionDesired;
+		dxDesired(3) 	  	= dYawDesired;
+
+		d2xDesired.head(3) 	= d2PositionDesired;
+		d2xDesired(3) 		= d2YawDesired;
+
+		qDesired 			<< dxDesired, xDesired;	
+
+		x 					<< q - qDesired;		
+
+		u = Krlqr*x;
+
+		input = (u + d2xDesired + F2*Rotation.transpose()*dxDesired);
+
+		input = F1.inverse()*input;
+
+		inputSaturation(input);
+			
+		return input;
+		
+	}
 
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/

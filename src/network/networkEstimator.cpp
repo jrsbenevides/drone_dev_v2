@@ -46,6 +46,20 @@ namespace DRONE {
 	void Estimator::setFlagReadyToSend(const bool& flag){
 		isReadyToSend = flag;
 	}
+	
+	void Estimator::setFlagComputeControl(const bool& flag){
+		isReadyCompControl = flag;
+	}
+
+	void Estimator::setRcvArrayZero(void){
+		rcvArray = rcvArray.Zero();
+	}
+
+	void Estimator::setCmdAgentDone(const int& agent){
+		rcvArray(agent) = _DONE;
+	}
+	
+	
 
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
@@ -63,6 +77,10 @@ namespace DRONE {
 
 	bool Estimator::getFlagReadyToSend(void){
 		return isReadyToSend;
+	}
+
+	bool Estimator::getFlagComputeControl(void){
+		return isReadyCompControl;
 	}
 
 	double Estimator::getThisTimeSend(void){
@@ -122,9 +140,16 @@ namespace DRONE {
 			P[i] = MatrixXd::Identity(2,2);
 		}
 
+		_EMPTY 		= 0;
+		_RECEIVED 	= 1;
+		_ESTIMATED	= 7;
+		_DONE 		= 15;
+
+
 		flagEnter			= true;
 		flagDebug 			= true;
 		setFlagReadyToSend(false);
+		setFlagComputeControl(true);
 		updateRate          = 0.05; //20Hz
 		isCMHEenabled		= 0;
 		nOfAgents			= 5;
@@ -298,6 +323,32 @@ namespace DRONE {
 		}
 		return agent;
 	}
+
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: nextAgentToSend
+	*	  Created by: jrsbenevides
+	*  Last Modified: jrsbenevides
+	*
+	*  	 Description: 1. Returns the index of the agent to compute input and 
+	*                    Returns -1 in case none of the elements in rcvArray is -1
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	int Estimator::nextAgentToSend(void){
+
+		bool flag = false;
+		int agent = -1;
+		
+		for(int i=0;(i<nOfAgents)&&(flag==false);i++){
+			if(rcvArray(i)==7){
+				agent = i;
+				flag=true;
+			}
+		}
+		return agent;
+	}
+
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: AddPkt2Buffer
 	*	  Created by: jrsbenevides
@@ -498,7 +549,7 @@ namespace DRONE {
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	/* 		Function: ComputeEKF
+	/* 		Function: ComputeEstimation
 	*	  Created by: jrsbenevides
 	*  Last Modified: 
 	*
@@ -506,7 +557,7 @@ namespace DRONE {
 	*		   Steps: 	DEVO COLOCAR AQUI UNS CONDICIONAIS PRA SABER SE AS MENSAGENS JÁ CHEGARAM E SE JA PODE PROCESSAR, SENAO SO BYPASSA*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
 
-	void Estimator::ComputeEKF(void){
+	void Estimator::ComputeEstimation(void){
 		
 		bool status = false;
 		int agent = 0;
@@ -516,7 +567,7 @@ namespace DRONE {
 		Matrix8x4 Bk;
 		Vector8d x;
 		VectorQuat uComp, uPre;
-		geometry_msgs::Pose p; // one pose to put in the array
+		// geometry_msgs::Pose p; // one pose to put in the array
 		double tempValue;
 
 		tGlobalSendCont = getThisTimeSend(); // TROCAR ESSE VALOR POR ALGO REAL! FAZER AS CONTAS CERTINHO!!!
@@ -556,7 +607,7 @@ namespace DRONE {
 					cout << "Pacote eh velho demais...esperar liberar o envio pra mandar de novo" << endl;
 				}
 
-				rcvArray(agent) = 7; // 7 == finished
+				rcvArray(agent) = _ESTIMATED; // 7 == finished
 
 				// 	% ####################################################
 				// 	% ###########   STEP 1.3 Prediction Step  ############
@@ -604,59 +655,12 @@ namespace DRONE {
 			}
 		}
 
-		//DEVEMOS MONTAR UM ARRAY SALVANDO SE JA TEMOS A INFORMAÇÃO DAQUELE AGENTE - VAR GLOBAL
-
-		//PROCESSA A INFORMAÇÃO PRO AGENTE QUE JA RECEBEU ATE QUE TODOS OS AGENTES ESTEJAM PRONTOS. DAÍ PRECISO AUTORIZAR O ENVIO DE COMANDO E ZERAR PARA NOVAS COMPUTAÇÕES
-		
-		// 	ackReceive(agent) = status;
-			
-		
-
-		
-		// 	% ####################################################
-		// 	% ###########  STEP 2 Send estimate pose  ############
-		// 	% ####################################################
-
-
-
-		/*DEBUG MASTER
-		estPose vai ser a mensagem enviada!!
-		*/
-		// cout << "x(0) = " << x(0) << endl;
-
-		// if(counter < nOfAgents){
-		// 	estPose.header.stamp = ros::Time::now(); // timestamp of creation of the msg
-		// 	estPose.header.frame_id = "map"; // frame id in which the array is published
-		// 	cout << "P1 = " << counter << endl;
-		// 	// fill p appropriately
-		// 	p.position.x = 0.1 + (double) counter;
-		// 	p.orientation.x = 0.4 + (double) counter;
-		// 	cout << "P2 = " << counter << endl;
-		// 	// push in array (in C++ a vector, in python a list)
-		// 	// estPose.poses.push_back(p);
-		// 	estPose.poses[counter].position.x = p.position.x;
-		// 	cout << "P2 = " << counter << endl;
-		// 	tempValue = (double) estPose.poses[counter].position.x;
-		// 	cout << "COUNTER = " << counter << endl;
-		// 	cout << "Valor proposto = " << p.position.x << endl;
-		// 	cout << "Valor salvo    = " << tempValue << endl;
-		// 	counter++;
-		// } else { 
-		// 	if(counter == nOfAgents){
-		// 		estPose.poses[0].position.x = 35.00;
-		// 		cout << "Chegou no fim da contagem" << endl;
-		// 		for(int k=0; k < nOfAgents;k++){
-		// 			cout << "oi" << endl;
-		// 			cout << "Info " << k+1 << " = " << endl; 
-		// 			tempValue = (double) estPose.poses[k].position.x;
-		// 			cout << "Oioioi" << endl;
-		// 			cout << tempValue << endl;
-		// 			cout << "Oioioi" << endl;
-		// 		}
-		// 		counter++;
-		// 	}
-		// }
-
+		// Checks if it is ready to go (timewise)
+		if(tGlobalSendCont - ros::Time::now().toSec() < 0.005){ //Computation time,send, receiving and implementing = 0.005
+			setFlagReadyToSend(true);
+		} else {
+			setFlagReadyToSend(false);
+		}
 	}
 
 	/* ###########################################################################################################################*/
@@ -716,8 +720,8 @@ namespace DRONE {
 
 			cout << "RCV: Ag:" << nAgent << endl;	
 
-			if(rcvArray(nAgent)==0){
-				rcvArray(nAgent) = 1;
+			if(rcvArray(nAgent)==_EMPTY){
+				rcvArray(nAgent) = _RECEIVED;
 			} else {
 				if(rcvArrayBuffer(nAgent) < 1000){
 					rcvArrayBuffer(nAgent)++;
@@ -743,7 +747,7 @@ namespace DRONE {
 
 // 		while (ros::ok())
 // 	   	{
-// 		    ncs_estimator.ComputeEKF();
+// 		    ncs_estimator.ComputeEstimation();
 // 			ros::spinOnce(); 
 // 			loop_rate.sleep();
 // 	   	}

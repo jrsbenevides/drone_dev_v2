@@ -40,7 +40,8 @@ namespace DRONE {
 
 	  	bool    isControlStarted;
 		bool    isFirstTimePass;
-		bool 	isReadyToSend;	  
+		bool 	isReadyToSend;
+		bool 	isReadyCompControl;
 
 		int 	isCMHEenabled;
 		int 	bfSize;
@@ -55,6 +56,12 @@ namespace DRONE {
 	    int counter; //PARA DEBUG APENAS 
 		int	nOfAgents;
 		Vector8d estPose[5]; // 5 = nOfAgents
+
+
+		int _EMPTY 		;
+		int _RECEIVED 	;
+		int _ESTIMATED	;
+		int _DONE 		;
 
 	  	double stepT, nextTimeToSend, updateRate;
 
@@ -98,29 +105,36 @@ namespace DRONE {
 		Estimator();
 		~Estimator();
 		
-		void initEstimator(void);
-		void ComputeEKF(void);
-		void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
-		void odomRcvCallback(const nav_msgs::Odometry::ConstPtr& odomRaw);
-		void loadTopics(ros::NodeHandle &n);
-		void loadSettings(ros::NodeHandle &n);
-		bool AddPkt2Buffer(const Buffer& pkt, const int agent);
-		void UpdateBuffer(const Buffer& pkt, const int agent,const int i);
-		void updateEKF(const int agent);
-		int nextAgentToCompute(void);
-		void updateModel(void);
-		void isSinsideTrapezoid(Vector2d& s, const Vector2d& sOld, int agent);
+		void 	initEstimator(void);
+		void 	ComputeEstimation(void);
+		void 	joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
+		void 	odomRcvCallback(const nav_msgs::Odometry::ConstPtr& odomRaw);
+		void 	loadTopics(ros::NodeHandle &n);
+		void 	loadSettings(ros::NodeHandle &n);
+		bool 	AddPkt2Buffer(const Buffer& pkt, const int agent);
+		void 	UpdateBuffer(const Buffer& pkt, const int agent,const int i);
+		void 	updateEKF(const int agent);
+		int 	nextAgentToCompute(void);
+		int 	nextAgentToSend(void);
+		void 	updateModel(void);
+		void 	isSinsideTrapezoid(Vector2d& s, const Vector2d& sOld, int agent);
 		
 		void 		setK(const Vector8d& Kvalue);
 		void 		setBuffer(const Buffer& msg);
 		void 		setEstimatePose(const Vector8d& x,const int agent);
 		void 		setFlagReadyToSend(const bool& flag);
+		void 		setFlagComputeControl(const bool& flag);
+		void 		setRcvArrayZero(void);
+		void 		setCmdAgentDone(const int& agent);
 
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);
 		double 		getThisTimeSend(void);
 		Buffer 		getBuffer(const int index);
 		bool 		getFlagReadyToSend(void);
+		bool 		getFlagComputeControl(void);
+		
+
 	};
 } // namespace DRONE
 

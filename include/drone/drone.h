@@ -83,6 +83,7 @@ namespace DRONE {
 			Matrix4d F1, F2;
 			Matrix4d Kp, Kd, Ki;
 			Matrix4x8 Klqr;
+			Matrix4x8 Krlqr;
 			
 			Matrix9d 	A_kalman;
 			Matrix9d 	P_kalman;
@@ -170,6 +171,8 @@ namespace DRONE {
 			void 		setposeDesired(VectorFive poseDesiredValue);
 			void 		zeroSumPixelError(void);
 			void  		setFreezeConstant(double value);
+			void		setControlGain(const Matrix4x8& K);
+			Matrix4x8	getControlGain(void);
 
 
 			double 		getTimeNow(void);
@@ -233,6 +236,8 @@ namespace DRONE {
 			void 		inputSaturation(Vector4d& input);
 			void 		RLQR(Matrix8d& L, Matrix4x8& Krlqr, const Matrix8d& F, const Matrix8x4& G, const Matrix4d& Rr, const Matrix8d& Qr);
 			void 		RecursiveLQR(Matrix4x8& Klqr, const Matrix8d& F, const Matrix8x4& G, const Matrix4d& Rr, const Matrix8d& Qr);
+			void 		updateRLQRGain(void); 			  // Recursive LQR Gain Update
+			Vector4d 	MASControlInput(const Vector8d& q);
 			
 			bool 		getIsOdomStarted(void);
 			bool 		getIsViconStarted(void);
@@ -241,9 +246,8 @@ namespace DRONE {
 			bool 		getIsFirstOrbSlamRun(void);
 			bool 		getIsFlagEnable(void);
 			bool 		getEKFToken(void);
-			VectorFive getposeDesired(void);
+			VectorFive 	getposeDesired(void);
 			Vector3axes getSumPixelError(void);
-
 	};
 
 

@@ -324,6 +324,7 @@ namespace DRONE {
 
 	void System::loadTopics(ros::NodeHandle &n) {
 		cmd_vel_publisher 		 = n.advertise<geometry_msgs::Twist>("/drone/cmd_vel",1);
+		cmd_global_publisher	 = n.advertise<geometry_msgs::PoseArray>("cmd_global",1);
 		transfPosition_publisher = n.advertise<nav_msgs::Odometry>("/drone/transf_position",1);
 		joy_subscriber 			 = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &System::joyCallback, this);
 		odom_subscriber 		 = n.subscribe<nav_msgs::Odometry>("/drone/odom", 1, &System::odomCallback, this);
@@ -540,10 +541,31 @@ namespace DRONE {
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	void System::ncs(){
-		network.ComputeEKF();
-		MAScontrol();
-		if(network.getFlagReadyToSend()){
+		int agent;
+		Vector4d input;
+
+		network.ComputeEstimation(); 				// Tries to compute an estimate
+		if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
+			MAScontrol();
+			network.setFlagComputeControl(false);
+		}
+		agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
+		if(agent>=0){
+			input = drone.MASControlInput(network.getEstimatePose(agent));
+			cmdArray.poses[agent].position.x = input(0);
+			cmdArray.poses[agent].position.y = input(1);
+			cmdArray.poses[agent].position.z = input(2);
+			cmdArray.poses[agent].orientation.x = input(3);
+			network.setCmdAgentDone(agent); //network.rcvArray(agent) = 15;
+		}
+		if(network.getFlagReadyToSend()){			//Publishes information to broadcast
 			cout << "envio" << endl;
+			cmd_global_publisher.publish(cmdArray);
+			network.setFlagComputeControl(true);
+			network.setRcvArrayZero(); 				//Resets array for receiving new messages
+
+			//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer
+			
 		}
 	}		
 
@@ -692,8 +714,6 @@ namespace DRONE {
 	  // This if is enabled by user through joystick (DEFAULT = hold SELECT button)
 	  if(drone.getIsFlagEnable()&&(flagEmergency == 0)){ //flagEnable == true
 
-		position = drone.getPosition();
-
 		if(controlSelect.compare("PID") == 0){
 
 			cout << "### PID ###" << endl;
@@ -716,7 +736,7 @@ namespace DRONE {
 
 			// cout << "### Robust LQR ###" << endl;
 
-			input = drone.getRobustControlLaw();
+			drone.updateRLQRGain();
 
 		} else if(controlSelect.compare("SLQR") == 0){
 
@@ -742,46 +762,46 @@ namespace DRONE {
 
 		}
 
-		drone.inputSaturation(input);
+		// drone.inputSaturation(input);
 
-		// cout << "Input:" << input << endl;
+		// // cout << "Input:" << input << endl;
 		
-	     cmd_vel_msg.linear.x  = input(0);
-	     cmd_vel_msg.linear.y  = input(1);
-	     cmd_vel_msg.linear.z  = input(2);
-	     cmd_vel_msg.angular.x = 0;            
-	     cmd_vel_msg.angular.y = 0;            
-	     cmd_vel_msg.angular.z = input(3);
+	    //  cmd_vel_msg.linear.x  = input(0);
+	    //  cmd_vel_msg.linear.y  = input(1);
+	    //  cmd_vel_msg.linear.z  = input(2);
+	    //  cmd_vel_msg.angular.x = 0;            
+	    //  cmd_vel_msg.angular.y = 0;            
+	    //  cmd_vel_msg.angular.z = input(3);
 
-	     // Publish input controller
-	     cmd_vel_publisher.publish(cmd_vel_msg);
+	    //  // Publish input controller
+	    //  cmd_vel_publisher.publish(cmd_vel_msg);
 		}
 		else{
 
 		flagControllerStarted = true; //Keeps track of flagEnable activation in order to zero PID integral error.
 
-		 cmd_vel_msg.linear.x  = 0;
-	     cmd_vel_msg.linear.y  = 0;
-	     cmd_vel_msg.linear.z  = 0;
-	     cmd_vel_msg.angular.x = 0;            
-	     cmd_vel_msg.angular.y = 0;            
-	     cmd_vel_msg.angular.z = 0;
+		//  cmd_vel_msg.linear.x  = 0;
+	    //  cmd_vel_msg.linear.y  = 0;
+	    //  cmd_vel_msg.linear.z  = 0;
+	    //  cmd_vel_msg.angular.x = 0;            
+	    //  cmd_vel_msg.angular.y = 0;            
+	    //  cmd_vel_msg.angular.z = 0;
 
-	     // Publish input controller
-	     cmd_vel_publisher.publish(cmd_vel_msg);
+	    //  // Publish input controller
+	    //  cmd_vel_publisher.publish(cmd_vel_msg);
 
 		}
 
-		if(autoMode == 1){
-			if(drone.getIsFlagEnable()){
-				ackControlGlobal = (ackControlGlobal & (~0x03))|0x03;
-			}
-			else{
-				ackControlGlobal = (ackControlGlobal & (~0x03))|0x00;
-			}
-			ackControl_msg.data = ackControlGlobal;
-			ackControl_publisher.publish(ackControl_msg);
-		}
+		// if(autoMode == 1){
+		// 	if(drone.getIsFlagEnable()){
+		// 		ackControlGlobal = (ackControlGlobal & (~0x03))|0x03;
+		// 	}
+		// 	else{
+		// 		ackControlGlobal = (ackControlGlobal & (~0x03))|0x00;
+		// 	}
+		// 	ackControl_msg.data = ackControlGlobal;
+		// 	ackControl_publisher.publish(ackControl_msg);
+		// }
 
 	  	// // Timeout to check if OrbSlam is running
 	  	// if(sensorSelect.compare("ORBSLAM") == 0){

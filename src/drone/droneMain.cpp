@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 		ros::Rate loop_rate(100); // Defines update rate
 		while (ros::ok())
 		{
-			node.control();  //Main control function
+			node.ncs();  //Main control function
 		    ros::spinOnce(); 
 		    loop_rate.sleep(); 
 		}

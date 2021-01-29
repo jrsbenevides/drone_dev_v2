@@ -40,6 +40,7 @@ namespace DRONE {
 	    ros::NodeHandle n;
 
 		ros::Publisher cmd_vel_publisher;
+		ros::Publisher cmd_global_publisher;
 		ros::Publisher transfPosition_publisher;
 		ros::Publisher ackControl_publisher;
 
@@ -144,6 +145,7 @@ namespace DRONE {
 		void ncs();
 		void control();
 		void MAScontrol();
+		Vector4d MASControlInput(const int& agent);
 		
 	};		
 }
