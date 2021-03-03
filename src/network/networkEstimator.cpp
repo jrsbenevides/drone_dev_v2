@@ -400,7 +400,7 @@ namespace DRONE {
 		// Stores current buffer index in order to increment at the end.
 		curIndex = bfStruct[agent][0][0].index;
 
-		cout << "O agente eh " << agent << " e o pacote eh " << curIndex << " e i = " << i << endl; //DEBUG!!!
+		// cout << "O agente eh " << agent << " e o pacote eh " << curIndex << " e i = " << i << endl; //DEBUG!!!
 
 		// Shifts old packages to accomodate new package
 		if(i > 0){
@@ -559,20 +559,21 @@ namespace DRONE {
 
 	void Estimator::ComputeEstimation(void){
 		
+		// Declare and start local variables
 		bool status = false;
 		int agent = 0;
-		double tBar, deltaT, tGlobalSendCont;
+		double tBar, deltaT, tGlobalSendCont,tempValue;
+		
 		Vector2d sEst;
+		VectorQuat uComp, uPre;
+		Vector8d x;
+		
 		Matrix8d Ak;
 		Matrix8x4 Bk;
-		Vector8d x;
-		VectorQuat uComp, uPre;
-		// geometry_msgs::Pose p; // one pose to put in the array
-		double tempValue;
 
 		tGlobalSendCont = getThisTimeSend(); // TROCAR ESSE VALOR POR ALGO REAL! FAZER AS CONTAS CERTINHO!!!
 
-		if(rcvArray.any()){ //if 1 or 7
+		if(rcvArray.maxCoeff() > _EMPTY){
 
 			agent = nextAgentToCompute(); // Checks which agent should be handled next. -1 if waiting for computation. 
 			
@@ -654,13 +655,16 @@ namespace DRONE {
 
 			}
 		}
-
-		// Checks if it is ready to go (timewise)
-		if(tGlobalSendCont - ros::Time::now().toSec() < 0.005){ //Computation time,send, receiving and implementing = 0.005
-			setFlagReadyToSend(true);
-		} else {
-			setFlagReadyToSend(false);
-		}
+		
+		//Check if waiting to send
+		if(rcvArray.minCoeff() == _DONE){
+			// Checks if it is ready to go (timewise)
+			if(tGlobalSendCont - ros::Time::now().toSec() < 0.005){ //Computation time,send, receiving and implementing = 0.005
+				setFlagReadyToSend(true);
+			} else {
+				setFlagReadyToSend(false);
+			}
+		}		
 	}
 
 	/* ###########################################################################################################################*/
@@ -718,7 +722,7 @@ namespace DRONE {
 
 			setBuffer(incomingMsg);
 
-			cout << "RCV: Ag:" << nAgent << endl;	
+			// cout << "RCV: Ag:" << nAgent << endl;	
 
 			if(rcvArray(nAgent)==_EMPTY){
 				rcvArray(nAgent) = _RECEIVED;

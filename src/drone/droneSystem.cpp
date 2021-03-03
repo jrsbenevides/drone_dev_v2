@@ -563,9 +563,7 @@ namespace DRONE {
 			cmd_global_publisher.publish(cmdArray);
 			network.setFlagComputeControl(true);
 			network.setRcvArrayZero(); 				//Resets array for receiving new messages
-
-			//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer
-			
+			//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
 		}
 	}		
 
