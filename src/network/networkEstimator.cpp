@@ -83,6 +83,18 @@ namespace DRONE {
 		return isReadyCompControl;
 	}
 
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: getThisTimeSend
+	*	  Created by: jrsbenevides
+	*  Last Modified: jrsbenevides
+	*
+	*  	 Description: 1. Checks current time
+	*				  2. Based on the predefined value of nexTimeToSend (started at -1, and changed to zero as soon as first message strikes)
+	*					 it will change the value of timeSend based on a time basis defined by the updateRate.
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 	double Estimator::getThisTimeSend(void){
 		
 		double timeSend;
@@ -91,7 +103,7 @@ namespace DRONE {
 		if(timeSend > nextTimeToSend){
 			if(nextTimeToSend > 0){						//After every iteration
 				nextTimeToSend += updateRate;
-			} else if(nextTimeToSend == 0) { 									//Only on first iteration.
+			} else if(nextTimeToSend == 0) { 			//Only on first iteration.
 				nextTimeToSend = timeSend + updateRate;
 			}
 		}
@@ -305,8 +317,8 @@ namespace DRONE {
 	*	  Created by: jrsbenevides
 	*  Last Modified: jrsbenevides
 	*
-	*  	 Description: 1. Returns the index of the agent to have buffer treated
-	*                    Returns -1 in case none of the elements in rcvArray is -1
+	*  	 Description: 1. Returns the index of the agent with pending messages to be treated
+	*                    Returns -1 in case none of the elements in rcvArray is _RECEIVED
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -316,7 +328,7 @@ namespace DRONE {
 		int agent = -1;
 		
 		for(int i=0;(i<nOfAgents)&&(flag==false);i++){
-			if(rcvArray(i)==1){
+			if(rcvArray(i)==_RECEIVED){
 				agent = i;
 				flag=true;
 			}
@@ -330,8 +342,8 @@ namespace DRONE {
 	*	  Created by: jrsbenevides
 	*  Last Modified: jrsbenevides
 	*
-	*  	 Description: 1. Returns the index of the agent to compute input and 
-	*                    Returns -1 in case none of the elements in rcvArray is -1
+	*  	 Description: 1. Returns the index of the agent in the line to organize and send
+	*                    Returns -1 in case none of the elements in rcvArray is _ESTIMATED
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -341,7 +353,7 @@ namespace DRONE {
 		int agent = -1;
 		
 		for(int i=0;(i<nOfAgents)&&(flag==false);i++){
-			if(rcvArray(i)==7){
+			if(rcvArray(i)==_ESTIMATED){
 				agent = i;
 				flag=true;
 			}
@@ -350,7 +362,7 @@ namespace DRONE {
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	/* 		Function: AddPkt2Buffer
+	/* 		Function: AddPkt2Buffer - EYEDEBUG OK
 	*	  Created by: jrsbenevides
 	*  Last Modified: jrsbenevides
 	*
@@ -380,7 +392,7 @@ namespace DRONE {
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	/* 		Function: UpdateBuffer
+	/* 		Function: UpdateBuffer - EYEDEBUG OK
 	*	  Created by: jrsbenevides
 	*  Last Modified: jrsbenevides
 	*
@@ -581,7 +593,7 @@ namespace DRONE {
 				
 				bfTemp[agent].tGSendCont = tGlobalSendCont; //APRIMORAR AS CONDIÇÕES PARA ESSA DETERMINAÇÃO (msg adiantada, atrasada, etc...)
 				
-				cout  << "agente: " << agent << " e pkt: " << bfStruct[agent][0][0].index << endl; //DEBUG!!!
+				cout  << "agente: " << agent << " e pkt: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
 
 				status = AddPkt2Buffer(bfTemp[agent],agent);
 			
@@ -651,8 +663,6 @@ namespace DRONE {
 					cout << "Buffer chegada = " << rcvArray.transpose() << endl;
 					flagDebug = false;
 				}
-
-
 			}
 		}
 		
@@ -689,6 +699,7 @@ namespace DRONE {
 		Buffer incomingMsg;
 		if(isCMHEenabled == 1){
 
+			// Initialize buffer during first loop
 			if(flagEnter){
 				nextTimeToSend  = 0;
 				for (int i = 0;i < nOfAgents ;i++){
@@ -700,32 +711,31 @@ namespace DRONE {
 				}
 				flagEnter		= false;
 			}
-			
+
 			//Fill Header
 			agent = odomRaw->header.frame_id;
 			nAgent =  atoi(agent.c_str());   
 			incomingMsg.index = nAgent;
-			incomingMsg.tsArrival = ros::Time::now().toSec();
-			incomingMsg.tsSensor  = odomRaw->header.stamp.toSec();
-			incomingMsg.tGSendCont = 0;
-			//Fill Data
-			incomingMsg.data << odomRaw->pose.pose.position.x,
-								odomRaw->pose.pose.position.y,
-								odomRaw->pose.pose.position.z,
-								odomRaw->pose.pose.orientation.z, //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
-								odomRaw->twist.twist.linear.x,
-								odomRaw->twist.twist.linear.y,
-								odomRaw->twist.twist.linear.z,
-								odomRaw->twist.twist.angular.z;
-			
-			//Save
 
-			setBuffer(incomingMsg);
-
-			// cout << "RCV: Ag:" << nAgent << endl;	
-
-			if(rcvArray(nAgent)==_EMPTY){
+			if(rcvArray(nAgent) == _EMPTY){
 				rcvArray(nAgent) = _RECEIVED;
+				
+				incomingMsg.tsArrival = ros::Time::now().toSec();
+				incomingMsg.tsSensor  = odomRaw->header.stamp.toSec();
+				incomingMsg.tGSendCont = 0;
+				//Fill Data
+				incomingMsg.data << odomRaw->pose.pose.position.x,
+									odomRaw->pose.pose.position.y,
+									odomRaw->pose.pose.position.z,
+									odomRaw->pose.pose.orientation.z, //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
+									odomRaw->twist.twist.linear.x,
+									odomRaw->twist.twist.linear.y,
+									odomRaw->twist.twist.linear.z,
+									odomRaw->twist.twist.angular.z;
+				
+				//Save
+
+				setBuffer(incomingMsg);
 			} else {
 				if(rcvArrayBuffer(nAgent) < 1000){
 					rcvArrayBuffer(nAgent)++;
@@ -733,6 +743,8 @@ namespace DRONE {
 					rcvArrayBuffer(nAgent) = 1000;
 				}
 			}
+			
+			
 		}
 	}	
 }

@@ -4,7 +4,7 @@
  * Created by: rsinoue on 16.Jun.2017
  * Last Modified: jrsbenevides
  *
- * Description: This is the main function that maintains the controller running at X Hz, 
+ * Description: This is the main function that maintains the set estimator/controller running at X Hz,
  *				where X is assigned in loop_rate(X).
  *
  *
