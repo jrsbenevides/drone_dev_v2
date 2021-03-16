@@ -539,33 +539,64 @@ namespace DRONE {
 	*                 3. Sends to Multi-Agent System
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// //Original Version 
+	// void System::ncs(){
+	// 	int agent;
+	// 	Vector4d input;
 
+	// 	network.ComputeEstimation(); 				// Tries to compute an estimate
+	// 	if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
+	// 		MAScontrol();
+	// 		network.setFlagComputeControl(false);
+	// 	}
+	// 	agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
+	// 	if(agent>=0){
+	// 		input = drone.MASControlInput(network.getEstimatePose(agent));
+	// 		cmdArray.poses[agent].position.x = input(0);
+	// 		cmdArray.poses[agent].position.y = input(1);
+	// 		cmdArray.poses[agent].position.z = input(2);
+	// 		cmdArray.poses[agent].orientation.x = input(3);
+	// 		network.setCmdAgentDone(agent); //network.rcvArray(agent) = 15;
+	// 	}
+	// 	if(network.getFlagReadyToSend()){			//Publishes information to broadcast
+	// 		cout << "envio" << endl;
+	// 		cmd_global_publisher.publish(cmdArray);
+	// 		network.setFlagComputeControl(true);
+	// 		network.setRcvArrayZero(); 				//Resets array for receiving new messages
+	// 		//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
+	// 	}
+	// }	
+	
+	// // Debug Version 
 	void System::ncs(){
 		int agent;
 		Vector4d input;
 
-		network.ComputeEstimation(); 				// Tries to compute an estimate
-		if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
-			MAScontrol();
-			network.setFlagComputeControl(false);
+		if(network.getFlagEmergencyStop() == false){
+			network.ComputeEstimation(); 				// Tries to compute an estimate
+			
+			agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
+
+			if(agent>=0){
+				input << 0,0,0,0; //REPLACING CONTROL
+				cmdArray.poses[agent].position.x = input(0);
+				cmdArray.poses[agent].position.y = input(1);
+				cmdArray.poses[agent].position.z = input(2);
+				cmdArray.poses[agent].orientation.x = input(3);
+				network.setCmdAgentDone(agent); //network.rcvArray(agent) = 15;
+				cout << "Calculada a entrada referente ao pacote " << network.bfStruct[agent][0][0].index << " do agente " << agent << endl;
+			}
+			
+			if(network.getFlagReadyToSend()){			//Publishes information to broadcast
+				cout << "\n############ Envio ############\n" << endl;
+				cmd_global_publisher.publish(cmdArray);
+				network.setFlagComputeControl(true);
+				network.setRcvArrayZero(); 				//Resets array for receiving new messages
+				network.setToken(true);					//Indicates to the network package that message has been sent already
+				//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
+			}
 		}
-		agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
-		if(agent>=0){
-			input = drone.MASControlInput(network.getEstimatePose(agent));
-			cmdArray.poses[agent].position.x = input(0);
-			cmdArray.poses[agent].position.y = input(1);
-			cmdArray.poses[agent].position.z = input(2);
-			cmdArray.poses[agent].orientation.x = input(3);
-			network.setCmdAgentDone(agent); //network.rcvArray(agent) = 15;
-		}
-		if(network.getFlagReadyToSend()){			//Publishes information to broadcast
-			cout << "envio" << endl;
-			cmd_global_publisher.publish(cmdArray);
-			network.setFlagComputeControl(true);
-			network.setRcvArrayZero(); 				//Resets array for receiving new messages
-			//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
-		}
-	}		
+	}			
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: control
@@ -1280,7 +1311,7 @@ namespace DRONE {
 	*  	 			  1. It is enabled only when 'ORBSLAM' is selected as sensor;
 	*				  2. Gets current time, position and orientation;
 	*				  3. Sets position now, because we need to compute velocity;
-	*				  4. Because OrbSlam sensor does not deliver either linear or angular velocity, we need estimate them through a
+	*				  4. Because OrbSlam sensor does not deliver either linear or angular velocities, we need estimate them through a
 	*					 simple Kalman Filter, which is performed by DvKalman and DwKalman functions
 	*				  5. Uses current position and orientation to set new coordinate frame in case that flag allows it do to so;
 	*				  6. Sets orientation, linear and angular velocity in local terms;

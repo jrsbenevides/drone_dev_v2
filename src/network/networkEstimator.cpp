@@ -34,6 +34,14 @@ namespace DRONE {
 		bfTemp[msg.index] = msg;
 	}
 
+	void Estimator::setBufferNext(const Buffer& msg){
+		int index;
+		index = rcvArrayBuffer(msg.index);
+		if(index<3){
+			bfTempPending[msg.index][index] = msg;
+		}
+	}
+
 
 	void Estimator::setK(const Vector8d& Kvalue){
 		K = Kvalue;
@@ -52,11 +60,20 @@ namespace DRONE {
 	}
 
 	void Estimator::setRcvArrayZero(void){
-		rcvArray = rcvArray.Zero();
+		for(int i=0;i<nOfAgents;i++){
+			if(rcvArray(i)>_RECEIVED){
+				rcvArray(i) = _EMPTY;
+			}
+		}
+		cout << "rcvArray reset and = " << rcvArray.transpose() << endl;
 	}
 
 	void Estimator::setCmdAgentDone(const int& agent){
 		rcvArray(agent) = _DONE;
+	}
+
+	void Estimator::setToken(const bool& flag){
+		flagSentToken = flag;
 	}
 	
 	
@@ -83,6 +100,11 @@ namespace DRONE {
 		return isReadyCompControl;
 	}
 
+	bool Estimator::getFlagEmergencyStop(void){
+		return flagEmergencyStop;
+	}	
+	
+
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: getThisTimeSend
@@ -97,17 +119,24 @@ namespace DRONE {
 
 	double Estimator::getThisTimeSend(void){
 		
-		double timeSend;
+		double timeNow;
 
-		timeSend = ros::Time::now().toSec();
-		if(timeSend > nextTimeToSend){
+		timeNow = ros::Time::now().toSec();
+		if(timeNow > nextTimeToSend){ //We passed already
 			if(nextTimeToSend > 0){						//After every iteration
 				nextTimeToSend += updateRate;
 			} else if(nextTimeToSend == 0) { 			//Only on first iteration.
-				nextTimeToSend = timeSend + updateRate;
+				nextTimeToSend = timeNow + updateRate;
 			}
+		}else{ //if we still didn't reach the next timeToSend
+			if(flagSentToken == true){ //but if we already sent the message... 
+				nextTimeToSend += updateRate; //...we should be working with timeToSend after this one
+				setToken(false);  //flag of sent message disabled
+			} 
 		}
-			
+		if(nextTimeToSend>0){
+			flagTickStart = true;
+		}
 		return nextTimeToSend;
 	}
 
@@ -160,9 +189,12 @@ namespace DRONE {
 
 		flagEnter			= true;
 		flagDebug 			= true;
+		flagTickStart 		= false;
+		flagEmergencyStop 	= false;
 		setFlagReadyToSend(false);
 		setFlagComputeControl(true);
-		updateRate          = 0.05; //20Hz
+		setToken(false);
+		updateRate          = 0.1; //10Hz
 		isCMHEenabled		= 0;
 		nOfAgents			= 5;
 		bfSize              = 5;
@@ -212,6 +244,9 @@ namespace DRONE {
 		
 		for (int i = 0;i < bfSize ;i++){
 			bfTemp[i] = msgDrone;
+			for (int j = 0;j < 3 ;j++){
+				bfTempPending[i][j] = msgDrone;
+			}
 		}
 
 		cout << "Index = " << rcvMsg.index <<  endl;
@@ -234,7 +269,7 @@ namespace DRONE {
 		joy_subscriber 	   	  = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &Estimator::joyCallback, this);
 		
 		odomGlobal_publisher  = n.advertise<nav_msgs::Odometry>("/drone/odom_global", 1);
-		odomRcv_subscriber    = n.subscribe<nav_msgs::Odometry>("odom_imu", 1, &Estimator::odomRcvCallback, this);
+		odomRcv_subscriber    = n.subscribe<nav_msgs::Odometry>("odom_imu", 3, &Estimator::odomRcvCallback, this);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -376,6 +411,8 @@ namespace DRONE {
 		int i = bfSize - 1; // 0 to N-1 => size N
 		bool terminalCondition = false;
 
+		cout << "Adicionando pkt ao buffer" << endl;
+
 		while((terminalCondition == false)&&(i>=0)){
 			if(pkt.tsSensor > bfStruct[agent][i][0].tsSensor){
 				UpdateBuffer(pkt,agent,i);
@@ -386,6 +423,16 @@ namespace DRONE {
 				i--;
 			}
 		}
+
+		if(terminalCondition == true){
+			cout << "Sucesso >> ";
+			if(pkt.tsSensor == bfStruct[agent][i][0].tsSensor)
+				cout << "total" << endl;
+			else
+				cout << "parcial" << endl;
+
+		}
+
 		//indexBf = i;  //
 		return terminalCondition;
 		
@@ -572,8 +619,8 @@ namespace DRONE {
 	void Estimator::ComputeEstimation(void){
 		
 		// Declare and start local variables
-		bool status = false;
-		int agent = 0;
+		bool status = false, flagExitSearch;
+		int agent = 0,tambuf;
 		double tBar, deltaT, tGlobalSendCont,tempValue;
 		
 		Vector2d sEst;
@@ -593,11 +640,12 @@ namespace DRONE {
 				
 				bfTemp[agent].tGSendCont = tGlobalSendCont; //APRIMORAR AS CONDIÇÕES PARA ESSA DETERMINAÇÃO (msg adiantada, atrasada, etc...)
 				
-				cout  << "agente: " << agent << " e pkt: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
+				cout  << "Tratando: Agente: " << agent << " e pkt: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
 
 				status = AddPkt2Buffer(bfTemp[agent],agent);
 			
 				if(status == true){ // 		If buffer received this new info:
+					cout  << "Sucesso: Agente: " << agent << " e novo tamanho preenchido: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
 					if(bfStruct[agent][0][0].index >= bfSize){ //Buffer is ready to estimate
 						if(bfStruct[agent][0][0].index == bfSize){ //%Initial guess for estimate
 							
@@ -608,9 +656,11 @@ namespace DRONE {
 							genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
 							genParam[agent].sigmat = 0.5;									
 							cout <<  "Built first estimate for agent " << agent <<  endl;
-						}
 
-						updateEKF(agent);
+							PresentDebug(); //DEBUG
+						}
+						if(flagEmergencyStop == false) //DEBUG
+							updateEKF(agent);
 					} else {
 						bfStruct[agent][bfSize-1][0].upre << 0.01, 0.01, 0.01, 0.01; //CORRIGIR PARA O COMANDO DE ENTRADA CORRETO NO LUGAR DE 0.01!!!
 					}
@@ -658,23 +708,81 @@ namespace DRONE {
 		
 				if(flagDebug){
 					//AGUARDANDO CHEGADA DE MENSAGEM OU FINALIZACAO DE CALCULO.
-					cout << "Buffer temporario já está vazio ou aguardando liberacao" << endl;
+					// cout << "Buffer temporario já está vazio ou aguardando liberacao" << endl;
 
+					if(rcvArrayBuffer.minCoeff() > 0){ // There is something inside pending buffer!!
+						// if(tGlobalSendCont - ros::Time::now().toSec() > availableTime){ //Is it worth treating now or not? based on available time (about to send?)
+						flagExitSearch = false;
+						
+						for(int i=0;(i<nOfAgents)&&(!flagExitSearch);i++){
+							tambuf = rcvArrayBuffer(i);
+							if(tambuf>0){
+								if(rcvArray(i) == _EMPTY){
+									bfTemp[i] = bfTempPending[i][tambuf];
+									rcvArray(i)= _RECEIVED;
+									rcvArrayBuffer(i)--;
+									flagExitSearch = true;
+									cout << "Info de buffer pendente para o agente " << i << " esvaziada." << endl;
+								}
+							}
+						}
+						// }
+					}
 					cout << "Buffer chegada = " << rcvArray.transpose() << endl;
-					flagDebug = false;
+					flagDebug = true;
 				}
 			}
 		}
 		
-		//Check if waiting to send
-		if(rcvArray.minCoeff() == _DONE){
-			// Checks if it is ready to go (timewise)
-			if(tGlobalSendCont - ros::Time::now().toSec() < 0.005){ //Computation time,send, receiving and implementing = 0.005
-				setFlagReadyToSend(true);
-			} else {
-				setFlagReadyToSend(false);
+		
+		
+		// if(rcvArray.minCoeff() == _DONE){ //DEBUG....................... _DONE
+		//if(rcvArray.minCoeff() == _ESTIMATED){
+		
+		// Checks if it is ready to go timewise and based on starting condition
+		if(flagTickStart == true){ //It means that tGlobalSendCont SHOULD have a meaningful computing value
+			if(tGlobalSendCont - ros::Time::now().toSec() < updateRate*0.05){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
+				if(flagSentToken == false){
+					setFlagReadyToSend(true);
+				} else {
+					setFlagReadyToSend(false);
+				}
+				
+			} 
+			else {
+				if(tGlobalSendCont - ros::Time::now().toSec() < updateRate){
+					setFlagReadyToSend(false);
+					flagSentToken = false;
+				}
 			}
-		}		
+		}
+		//}		
+	}
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: PresentDebug
+	*	  Created by: jrsbenevides
+	*  Last Modified: 
+	*
+	*  	 Description: Simple text debug
+	*/
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	void Estimator::PresentDebug(void){
+		for(int i=0;i<nOfAgents;i++){
+			cout << "Agente " << i << " tam. Buffer = " << bfStruct[i][0][0].index << endl;
+			for(int j=0;j<bfSize;j++){
+				cout << "Agente " << i << ": " << "ts" << j << " = " << bfStruct[i][j][0].tsSensor << endl;
+			}
+			cout << " " << endl;
+		}
+
+		cout << "Mensagens não recebidas por estar ocupado: " << endl;
+
+		cout << rcvArrayBuffer.transpose() << endl;
+
+		flagEmergencyStop = true;
+
 	}
 
 	/* ###########################################################################################################################*/
@@ -702,13 +810,13 @@ namespace DRONE {
 			// Initialize buffer during first loop
 			if(flagEnter){
 				nextTimeToSend  = 0;
-				for (int i = 0;i < nOfAgents ;i++){
-					for (int j = 0;j < bfSize ;j++){
-						for (int k = 0;k < 2 ;k++){
-								cout << "inicio = " << bfStruct[i][j][k].index << endl;
-						}
-					}
-				}
+				// for (int i = 0;i < nOfAgents ;i++){
+				// 	for (int j = 0;j < bfSize ;j++){
+				// 		for (int k = 0;k < 2 ;k++){
+				// 				cout << "inicio = " << bfStruct[i][j][k].index << endl;
+				// 		}
+				// 	}
+				// }
 				flagEnter		= false;
 			}
 
@@ -717,8 +825,14 @@ namespace DRONE {
 			nAgent =  atoi(agent.c_str());   
 			incomingMsg.index = nAgent;
 
+			//DEBUG
+			cout << "Msg: Ag " <<  nAgent << ": RECEBIDO" << endl;
+
 			if(rcvArray(nAgent) == _EMPTY){
 				rcvArray(nAgent) = _RECEIVED;
+
+				//DEBUG
+				cout << "Status: RECEBIDO " << endl;
 				
 				incomingMsg.tsArrival = ros::Time::now().toSec();
 				incomingMsg.tsSensor  = odomRaw->header.stamp.toSec();
@@ -737,11 +851,18 @@ namespace DRONE {
 
 				setBuffer(incomingMsg);
 			} else {
-				if(rcvArrayBuffer(nAgent) < 1000){
-					rcvArrayBuffer(nAgent)++;
-				} else {
-					rcvArrayBuffer(nAgent) = 1000;
+				if(rcvArrayBuffer(nAgent) < 3){
+					cout << "Add info de buffer pendente para o agente " << nAgent << endl;
+					setBufferNext(incomingMsg);
+					rcvArrayBuffer(nAgent)++; //This call HAS TO come after the set above
+					cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
 				}
+				// cout << "####### acho que aqui mora o problema" << endl;
+				// if(rcvArrayBuffer(nAgent) < 1000){
+				// 	rcvArrayBuffer(nAgent)++;
+				// } else {
+				// 	rcvArrayBuffer(nAgent) = 1000;
+				// }
 			}
 			
 			

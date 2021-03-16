@@ -42,6 +42,9 @@ namespace DRONE {
 		bool    isFirstTimePass;
 		bool 	isReadyToSend;
 		bool 	isReadyCompControl;
+		bool 	flagSentToken;
+		bool 	flagTickStart;
+		bool 	flagEmergencyStop;
 
 		int 	isCMHEenabled;
 		int 	bfSize;
@@ -95,10 +98,12 @@ namespace DRONE {
 
 		Buffer bfTemp[5]; //[] = bfSize
 
+		Buffer bfTempPending[5][3]; //[] = bfSize,tamMaxBuffer
+
 		Buffer bfStruct[5][5][2]; //nOfAgents,bfSize, 2
 
-		VectorFive rcvArray;
-		VectorFive rcvArrayBuffer;
+		VectorFive rcvArray;	  	//[] = bfSize
+		VectorFive rcvArrayBuffer; 	//[] = bfSize
 
 		Matrix2x5 estParam; // alpha;beta in each column
 
@@ -118,14 +123,17 @@ namespace DRONE {
 		int 	nextAgentToSend(void);
 		void 	updateModel(void);
 		void 	isSinsideTrapezoid(Vector2d& s, const Vector2d& sOld, int agent);
+		void 	PresentDebug(void);
 		
 		void 		setK(const Vector8d& Kvalue);
 		void 		setBuffer(const Buffer& msg);
+		void 		setBufferNext(const Buffer& msg);
 		void 		setEstimatePose(const Vector8d& x,const int agent);
 		void 		setFlagReadyToSend(const bool& flag);
 		void 		setFlagComputeControl(const bool& flag);
 		void 		setRcvArrayZero(void);
 		void 		setCmdAgentDone(const int& agent);
+		void 		setToken(const bool& flag);
 
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);
@@ -133,6 +141,7 @@ namespace DRONE {
 		Buffer 		getBuffer(const int index);
 		bool 		getFlagReadyToSend(void);
 		bool 		getFlagComputeControl(void);
+		bool 		getFlagEmergencyStop(void);
 		
 
 	};
