@@ -420,6 +420,9 @@ namespace DRONE {
 			}
 			else{
 				cout << "eita" << endl;
+				cout << "O tempo de sensor no espaco " << i << " era de: " << bfStruct[agent][i][0].tsSensor << endl;
+				cout << "O tempo de sensor no pkt era de: " << pkt.tsSensor << endl;
+				cout << "E a diferença era de: " << pkt.tsSensor - bfStruct[agent][i][0].tsSensor << endl;
 				i--;
 			}
 		}
@@ -710,15 +713,18 @@ namespace DRONE {
 					//AGUARDANDO CHEGADA DE MENSAGEM OU FINALIZACAO DE CALCULO.
 					// cout << "Buffer temporario já está vazio ou aguardando liberacao" << endl;
 
-					if(rcvArrayBuffer.minCoeff() > 0){ // There is something inside pending buffer!!
+					if(rcvArrayBuffer.maxCoeff() > _EMPTY){ // There is something inside pending buffer!!
 						// if(tGlobalSendCont - ros::Time::now().toSec() > availableTime){ //Is it worth treating now or not? based on available time (about to send?)
 						flagExitSearch = false;
 						
+						cout << "Hora de recuperar a info de buffer pendente" << endl;
+
 						for(int i=0;(i<nOfAgents)&&(!flagExitSearch);i++){
-							tambuf = rcvArrayBuffer(i);
+							tambuf = rcvArrayBuffer(i); //Amount of stored packages for a determined agent
 							if(tambuf>0){
 								if(rcvArray(i) == _EMPTY){
-									bfTemp[i] = bfTempPending[i][tambuf];
+									cout << "Recuperando do agente " << i << " no idx " << tambuf -1 << endl;
+									bfTemp[i] = bfTempPending[i][tambuf-1]; //tambuf-1 corresponds to the index of where that last information was stored
 									rcvArray(i)= _RECEIVED;
 									rcvArrayBuffer(i)--;
 									flagExitSearch = true;
@@ -726,9 +732,13 @@ namespace DRONE {
 								}
 							}
 						}
+						if(flagExitSearch == false){
+							cout << "Buffer principal ainda esperando ser esvaziado para adicionar qualquer coisa" << endl;
+						}
 						// }
 					}
-					cout << "Buffer chegada = " << rcvArray.transpose() << endl;
+					cout << "Buffer Chegada = " << rcvArray.transpose() << endl;
+					cout << "Buffer Pendente = " << rcvArrayBuffer.transpose() << endl;
 					flagDebug = true;
 				}
 			}
@@ -826,46 +836,37 @@ namespace DRONE {
 			incomingMsg.index = nAgent;
 
 			//DEBUG
+			// cout << "\n-----------------------------------" << endl;
 			cout << "Msg: Ag " <<  nAgent << ": RECEBIDO" << endl;
 
+			incomingMsg.tsArrival = ros::Time::now().toSec();
+			incomingMsg.tsSensor  = odomRaw->header.stamp.toSec();
+			cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
+			incomingMsg.tGSendCont = 0;
+			//Fill Data
+			incomingMsg.data << odomRaw->pose.pose.position.x,
+								odomRaw->pose.pose.position.y,
+								odomRaw->pose.pose.position.z,
+								odomRaw->pose.pose.orientation.z, //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
+								odomRaw->twist.twist.linear.x,
+								odomRaw->twist.twist.linear.y,
+								odomRaw->twist.twist.linear.z,
+								odomRaw->twist.twist.angular.z;
+
 			if(rcvArray(nAgent) == _EMPTY){
+				
 				rcvArray(nAgent) = _RECEIVED;
+				cout << "Status: RECEBIDO Buffer Principal" << endl; //DEBUG
+				setBuffer(incomingMsg); //Save on main receive buffer
 
-				//DEBUG
-				cout << "Status: RECEBIDO " << endl;
-				
-				incomingMsg.tsArrival = ros::Time::now().toSec();
-				incomingMsg.tsSensor  = odomRaw->header.stamp.toSec();
-				incomingMsg.tGSendCont = 0;
-				//Fill Data
-				incomingMsg.data << odomRaw->pose.pose.position.x,
-									odomRaw->pose.pose.position.y,
-									odomRaw->pose.pose.position.z,
-									odomRaw->pose.pose.orientation.z, //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
-									odomRaw->twist.twist.linear.x,
-									odomRaw->twist.twist.linear.y,
-									odomRaw->twist.twist.linear.z,
-									odomRaw->twist.twist.angular.z;
-				
-				//Save
-
-				setBuffer(incomingMsg);
 			} else {
 				if(rcvArrayBuffer(nAgent) < 3){
-					cout << "Add info de buffer pendente para o agente " << nAgent << endl;
-					setBufferNext(incomingMsg);
+					cout << "Status: RECEBIDO Buffer Pendente : Ag = " << nAgent << endl;
+					setBufferNext(incomingMsg); 	//Save on pending receive buffer
 					rcvArrayBuffer(nAgent)++; //This call HAS TO come after the set above
 					cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
 				}
-				// cout << "####### acho que aqui mora o problema" << endl;
-				// if(rcvArrayBuffer(nAgent) < 1000){
-				// 	rcvArrayBuffer(nAgent)++;
-				// } else {
-				// 	rcvArrayBuffer(nAgent) = 1000;
-				// }
-			}
-			
-			
+			}	
 		}
 	}	
 }

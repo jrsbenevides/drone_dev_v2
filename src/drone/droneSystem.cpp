@@ -240,6 +240,8 @@ namespace DRONE {
 
 		geometry_msgs::Pose p;
 
+		contaEnvio = 0;
+
 		cout << "Starting Drone Node" << endl;
 
 		// Sets flag in order to halt Vicon acquisition and make sure it will be properly initialized once/if called.
@@ -588,7 +590,10 @@ namespace DRONE {
 			}
 			
 			if(network.getFlagReadyToSend()){			//Publishes information to broadcast
-				cout << "\n############ Envio ############\n" << endl;
+				contaEnvio++;
+				cout << "\n###############################" << endl;
+				cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
+				cout << "###############################\n" << endl;
 				cmd_global_publisher.publish(cmdArray);
 				network.setFlagComputeControl(true);
 				network.setRcvArrayZero(); 				//Resets array for receiving new messages

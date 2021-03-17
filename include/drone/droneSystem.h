@@ -88,6 +88,9 @@ namespace DRONE {
 		int 	 autoMode;
 		int 	 flagEmergency;
 
+		//DEBUG
+		int		contaEnvio;
+
 		uint8_t  ackControlGlobal;
 
 		int	 PLANNER_IDLE;
