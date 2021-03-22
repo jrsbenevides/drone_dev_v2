@@ -574,7 +574,7 @@ namespace DRONE {
 		int agent;
 		Vector4d input;
 
-		if(network.getFlagEmergencyStop() == false){
+		if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){
 			network.ComputeEstimation(); 				// Tries to compute an estimate
 			
 			agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data

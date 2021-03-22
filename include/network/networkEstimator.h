@@ -142,6 +142,7 @@ namespace DRONE {
 		bool 		getFlagReadyToSend(void);
 		bool 		getFlagComputeControl(void);
 		bool 		getFlagEmergencyStop(void);
+		bool 		getFlagEnter(void);
 		
 
 	};
