@@ -576,11 +576,20 @@ namespace DRONE {
 
 		if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){
 			network.ComputeEstimation(); 				// Tries to compute an estimate
+
+			if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
+				MAScontrol();							//Only working for RLQR -> updateRLQRGain
+				network.setFlagComputeControl(false);
+			}
 			
 			agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
 
 			if(agent>=0){
-				input << 0,0,0,0; //REPLACING CONTROL
+				if(network.bfStruct[agent][0][0].index > network.nOfAgents){
+					input = drone.MASControlInput(network.getEstimatePose(agent));
+				} else{
+					input = network.bfStruct[agent][4][0].upre;  //DEBUG => Devo tirar o 4 e colocar bfSize-1
+				}
 				cmdArray.poses[agent].position.x = input(0);
 				cmdArray.poses[agent].position.y = input(1);
 				cmdArray.poses[agent].position.z = input(2);

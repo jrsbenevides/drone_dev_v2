@@ -1338,28 +1338,28 @@ namespace DRONE {
 
 	void Drone::updateRLQRGain(void) {
 
-			Vector4d xError,dxError,dx, dxDesired, d2xDesired;
-			Vector8d x;
+			// Vector4d xError,dxError,dx, dxDesired, d2xDesired;
+			// Vector8d x;
 
-			xError.head(3) = positionError;
-			xError(3) = yawError;
+			// xError.head(3) = positionError;
+			// xError(3) = yawError;
 
-			dx.head(3) = dPosition;
-			dx(3) = dYaw;
+			// dx.head(3) = dPosition;
+			// dx(3) = dYaw;
 
-			dxError.head(3) = dPositionError;
-			dxError(3) = dYawError;
+			// dxError.head(3) = dPositionError;
+			// dxError(3) = dYawError;
 
-			dxDesired.head(3) = dPositionDesired;
-			dxDesired(3) 	  = dYawDesired;
+			// dxDesired.head(3) = dPositionDesired;
+			// dxDesired(3) 	  = dYawDesired;
 
-			d2xDesired.head(3) = d2PositionDesired;
-			d2xDesired(3) = d2YawDesired;
+			// d2xDesired.head(3) = d2PositionDesired;
+			// d2xDesired(3) = d2YawDesired;
 
-			x << dxError, xError;
+			// x << dxError, xError;
 
 			Matrix4d Rr;
-			Matrix8d Acont,Adisc,Qr,L;
+			Matrix8d Acont,Adisc,Qr;
 			Matrix8x4 Bcont,Bdisc;
 			Matrix4x8 K;
 
@@ -1395,25 +1395,6 @@ namespace DRONE {
 			RecursiveLQR(K,Adisc,Bdisc,Rr,Qr);
 
 			setControlGain(K);
-		
-			// u = Klqr*x; 
-			
-			// input = F1.inverse()*(u + d2xDesired + F2*Rotation.transpose()*dxDesired);
-
-			// for(int i=0; i < 4;i++){
-
-			// 	if(abs(xError(i)) < threshold(i)){
-			// 		input(i) = 0.0;
-			// 	}
-
-			// 	if(abs(input(i)) > inputRange(i)){
-			// 		if(input(i) > 0){
-			// 			input(i) = inputRange(i);
-			// 		} else {
-			// 			input(i) = -inputRange(i);
-			// 		}
-			// 	}
-			// }
 		}
 
 	

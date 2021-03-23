@@ -687,11 +687,11 @@ namespace DRONE {
 							genParam[agent].sigmat = 0.5;									
 							cout <<  "Built first estimate for agent " << agent <<  endl;
 
-							PresentDebug(); //DEBUG
-							flagEmergencyStop = true;//DEBUG
+							// PresentDebug(); //DEBUG
+							// flagEmergencyStop = true;//DEBUG
 						}
-						if(flagEmergencyStop == false) //DEBUG
-							updateEKF(agent);
+						// if(flagEmergencyStop == false) //DEBUG
+						updateEKF(agent);
 					} else {
 						bfStruct[agent][bfSize-1][0].upre << 0.01, 0.01, 0.01, 0.01; //CORRIGIR PARA O COMANDO DE ENTRADA CORRETO NO LUGAR DE 0.01!!!
 					}
@@ -809,6 +809,9 @@ namespace DRONE {
 			cout << "Agente " << i << " tam. Buffer = " << bfStruct[i][0][0].index << endl;
 			for(int j=0;j<bfSize;j++){
 				cout << "Agente " << i << ": " << "ts" << j << " = " << bfStruct[i][j][0].tsSensor << endl;
+				cout << "x : " << bfStruct[i][j][0].data[4] << endl;
+				cout << "y : " << bfStruct[i][j][0].data[5] << endl;
+				cout << "z : " << bfStruct[i][j][0].data[6] << endl;
 			}
 			cout << " " << endl;
 		}
@@ -868,14 +871,15 @@ namespace DRONE {
 			cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
 			incomingMsg.tGSendCont = 0;
 			//Fill Data
-			incomingMsg.data << odomRaw->pose.pose.position.x,
-								odomRaw->pose.pose.position.y,
-								odomRaw->pose.pose.position.z,
-								odomRaw->pose.pose.orientation.z, //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
-								odomRaw->twist.twist.linear.x,
+			incomingMsg.data << odomRaw->twist.twist.linear.x,
 								odomRaw->twist.twist.linear.y,
 								odomRaw->twist.twist.linear.z,
-								odomRaw->twist.twist.angular.z;
+								odomRaw->twist.twist.angular.z,
+								odomRaw->pose.pose.position.x,
+								odomRaw->pose.pose.position.y,
+								odomRaw->pose.pose.position.z,
+								odomRaw->pose.pose.orientation.z; //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
+								
 
 			if(rcvArray(nAgent) == _EMPTY){
 				
@@ -891,6 +895,11 @@ namespace DRONE {
 					cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
 				}
 			}	
+
+			// if(nAgent == 0){
+			// 	cout << "Msg Recebida:" << odomRaw->pose.pose.position.x << " " << odomRaw->pose.pose.position.y << " " << odomRaw->pose.pose.position.z << endl;
+			// }
+
 		}
 	}	
 }
