@@ -29,6 +29,7 @@ namespace DRONE {
 	const int size6d 	= 6;
 	const int size8d 	= 8;
 	const int sizeSigma = 9;
+	const int sizePlner = 12;
 	const int sizeDelta = 16;
 	const int sizeVrow  = 20;
 	const int sizeEKF   = 32;
@@ -51,6 +52,7 @@ namespace DRONE {
 	typedef Matrix<double, sizeSigma, 1>      	 Vector9d;
 	typedef Matrix<double, 1,         size8d> 	 Vector1d8;
 	typedef Matrix<double, sizeDelta, 1> 	 	 Vector16x1;
+	typedef Matrix<double, sizePlner, 1> 		 Vector12x1;
 	typedef Matrix<double, sizeEKF,   1> 	 	 Vector32x1;
 	typedef Matrix<double, 1,   sizeEKF> 	 	 Vector1x32;
 

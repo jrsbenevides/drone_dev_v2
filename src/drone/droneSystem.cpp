@@ -574,7 +574,7 @@ namespace DRONE {
 		int agent;
 		VectorQuat input;
 
-		if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){
+		if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())&&(drone.getIsFlagEnable())){
 			network.ComputeEstimation(); 				// Tries to compute an estimate
 
 			if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
@@ -588,7 +588,7 @@ namespace DRONE {
 				if(network.bfStruct[agent][0][0].index > network.nOfAgents){
 					input = drone.MASControlInput(network.getEstimatePose(agent));
 				} else{
-					input = network.bfStruct[agent][4][0].upre;  //DEBUG => Devo tirar o 4 e colocar bfSize-1
+					input = network.bfStruct[agent][network.bfSize - 1][0].upre;
 				}
 				cmdArray.poses[agent].position.x = input(0);
 				cmdArray.poses[agent].position.y = input(1);

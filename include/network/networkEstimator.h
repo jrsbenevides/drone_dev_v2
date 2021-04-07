@@ -8,6 +8,8 @@
 #ifndef NETWORKESTIMATOR_H_
 #define NETWORKESTIMATOR_H_
 
+#define _NOFAGENTS 1
+#define _BFSIZE 5
 
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
@@ -47,7 +49,6 @@ namespace DRONE {
 		bool 	flagEmergencyStop;
 
 		int 	isCMHEenabled;
-		int 	bfSize;
 
 		double 	PI;
 		double 	t;
@@ -57,8 +58,8 @@ namespace DRONE {
 	  	bool flagEnter, flagDebug;
 
 	    int counter; //PARA DEBUG APENAS 
-		int	nOfAgents;
-		Vector8d estPose[5]; // 5 = nOfAgents
+		int	nOfAgents,bfSize;
+		Vector8d estPose[_NOFAGENTS]; // 1 = nOfAgents
 
 
 		int _EMPTY 		;
@@ -66,7 +67,7 @@ namespace DRONE {
 		int _ESTIMATED	;
 		int _DONE 		;
 
-	  	double stepT, nextTimeToSend, updateRate;
+	  	double stepT, nextTimeToSend, updateRate,coeffUpdRate;
 
 		Vector8d K;
 
@@ -75,7 +76,7 @@ namespace DRONE {
 
 		Matrix4d Rotation;
 
-		Matrix2d F,Q, P[5];  // 5 = nOfAgents
+		Matrix2d F,Q, P[_NOFAGENTS];  // 5 = nOfAgents
 
 		struct GeneralParameters {   
 			double t1;
@@ -94,18 +95,18 @@ namespace DRONE {
 			VectorQuat upost;
 		};   // Define object of type BUFFER
 
-		GeneralParameters genParam[5]; //[] = nOfAgents
+		GeneralParameters genParam[_NOFAGENTS]; //[] = nOfAgents
 
-		Buffer bfTemp[5]; //[] = bfSize
+		Buffer bfTemp[_BFSIZE]; //[] = bfSize
 
-		Buffer bfTempPending[5][3]; //[] = bfSize,tamMaxBuffer
+		Buffer bfTempPending[_BFSIZE][3]; //[] = bfSize,tamMaxBuffer
 
-		Buffer bfStruct[5][5][2]; //nOfAgents,bfSize, 2
+		Buffer bfStruct[_NOFAGENTS][_BFSIZE][2]; //nOfAgents,bfSize, 2
 
-		VectorFive rcvArray;	  	//[] = bfSize
-		VectorFive rcvArrayBuffer; 	//[] = bfSize
+		Matrix<double,_BFSIZE,1> rcvArray;	  	//[] = bfSize
+		Matrix<double,_BFSIZE,1> rcvArrayBuffer; 	//[] = bfSize
 
-		Matrix2x5 estParam; // alpha;beta in each column
+		Matrix<double,2,_NOFAGENTS>  estParam; // alpha;beta in each column for every agent
 
 		Estimator();
 		~Estimator();

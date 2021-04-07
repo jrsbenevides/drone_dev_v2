@@ -16,6 +16,7 @@
 
 #include "drone/drone.h"
 #include "network/networkEstimator.h"
+#include "planner/genTrajectory.h"
 
 #include "geometry_msgs/Twist.h"
 #include "geometry_msgs/TransformStamped.h"
@@ -112,8 +113,10 @@ namespace DRONE {
 		string   controlSelect;
 		string   sensorSelect;
 
-		Drone    drone;
+		Drone     drone;
 		
+		Planner   planner;
+
 		Estimator network;
 
 		void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);

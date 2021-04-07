@@ -36,7 +36,7 @@ controlSelect: "RLQR"
 #"VICON"  = VICON
 #"ORBSLAM"  = ORBSLAM
 
-sensorSelect : "VICON"
+sensorSelect : "IMU"
 
 ####################################################################################################################################
 ################################################# PARAMETER IDENTIFICATION #########################################################
@@ -167,7 +167,7 @@ updateRateEKF: 5
 isCMHEenabled: 1
 
 # Defines the number of agents to be considered
-nOfAgents: 5
+nOfAgents: 1
 
 # Defines the buffer Size
 bfSize: 5

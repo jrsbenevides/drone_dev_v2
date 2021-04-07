@@ -59,6 +59,13 @@ namespace DRONE {
 	
 	}
 
+	void Planner::setStartTime(double timeValue){
+		
+		startTime = timeValue;
+	
+	}
+	
+
 	void Planner::setTrajectory(const string& trajectoryInput){
 
 		string DEFAULT_TRAJECTORY = "straightLine";
@@ -643,6 +650,238 @@ namespace DRONE {
 		
 	}
 
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: getPlanTrajectory
+	*	  Created by: jrsbenevides
+	*  Last Modified: 
+	*
+	*  	 Description: Trajectory Planner for a multi-agent system
+	*		   Steps: 1. Time count is "started" with setTimeStart()
+	*				  2. For a given agent, in a given time, calculates the waypoints, including velocity and acceleration in the form
+	*                 waypoint = x_d, y_d, z_d, psi_d, dx_d, dy_d, dz_d, dpsi_d, d2x_d, d2y_d, d2z_d, d2psi_d;
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
+
+	Vector12x1 Planner::getPlanTrajectory(const int& agent,const double& timeValue)	{
+
+	std_msgs::UInt8 ackMsg;
+	nav_msgs::Odometry mGoal;
+	Vector12x1 waypoint;
+	VectorQuat quatDesired;
+	quatDesired = quatDesired.Zero();
+	float t2,t3,t4,t5;
+	double yaw_desired; 
+
+	t = timeValue - startTime;
+	
+
+	if(trajectory.compare("eightShape") == 0){
+		
+		cout << "Eight-Shaped Trajectory" << endl;
+
+		waypoint << amplitude*sin(wAng*t),
+					0.5*amplitude*sin(2*wAng*t),
+					0.0,
+					0.0,
+					wAng*amplitude*cos(wAng*t),
+					wAng*amplitude*cos(2*wAng*t),
+					0.0,
+					0.0,
+					-wAng*wAng*amplitude*sin(wAng*t),
+					-2*wAng*wAng*amplitude*sin(2*wAng*t),
+					0.0,
+					0.0;
+	}
+	else if(trajectory.compare("circleXY") == 0){
+
+		cout << "circle XY - Trajectory" << endl;
+	
+		waypoint << amplitude*cos(wAng*t),
+					amplitude*sin(wAng*t),
+					0.0,
+					0.0,
+					-wAng*amplitude*sin(wAng*t),
+					wAng*amplitude*cos(wAng*t),
+					0.0,
+					0.0,
+					-wAng*wAng*amplitude*cos(wAng*t),
+					-wAng*wAng*amplitude*sin(wAng*t),
+					0.0,
+					0.0;
+
+	} else if(trajectory.compare("ident") == 0){
+
+		cout << "Ident - Trajectory" << endl;
+
+		if(t < 40){
+			waypoint << 0.5*amplitude*(cos(wAng*t)+cos(t)),
+						0.5*amplitude*(sin(wAng*t)+sin(t)),
+						0.0,
+						0.0,
+						-0.5*amplitude*(wAng*sin(wAng*t)+sin(t)),
+						0.5*amplitude*(wAng*cos(wAng*t)+cos(t)),
+						0.0,
+						0.0,
+						-0.5*amplitude*(wAng*wAng*cos(wAng*t)+cos(t)),
+						-0.5*amplitude*(wAng*wAng*sin(wAng*t)+sin(t)),
+						0.0,
+						0.0;
+
+		} 
+		else if(t < 80){
+
+			waypoint << 0.0,
+						0.0,
+						0.5*amplitude*(sin(wAng*(t-40)+sin(t-40))),
+						0.0,
+						0.0,
+						0.0,
+						0.5*amplitude*(wAng*cos(wAng*(t-40))+cos(t-40)),
+						0.0,
+						0.0,
+						0.0,
+						-0.5*amplitude*(wAng*wAng*sin(wAng*(t-40))+sin(t-40)),
+						0.0;								
+
+		} else{
+			waypoint << 0.0,
+						0.0,
+						0.0,
+						angles::normalize_angle(0.5*1.05*(sin(wAng*(t-80))+sin(t-80))),
+						0.0,
+						0.0,
+						0.0,
+						0.5*1.05*(wAng*cos(wAng*(t-80))+cos(t-80)),
+						0.0,
+						0.0,
+						0.0,
+						-0.5*1.05*(wAng*wAng*sin(wAng*(t-80))+sin(t-80));						
+		}							
+	} else if(trajectory.compare("circleZXY") == 0){
+
+		cout << "circle ZXY- Trajectory" << endl;
+		
+		waypoint << amplitude*cos(wAng*t),
+					amplitude*sin(wAng*t),
+					amplitude*sin(wAng*t),
+					-wAng*amplitude*sin(wAng*t),
+					wAng*amplitude*cos(wAng*t),
+					wAng*amplitude*cos(wAng*t),
+					0.0,
+					0.0,
+					-wAng*wAng*amplitude*cos(wAng*t),
+					-wAng*wAng*amplitude*sin(wAng*t),
+					-wAng*wAng*amplitude*sin(wAng*t),
+					0.0;	
+
+	} else if(trajectory.compare("straightLine") == 0){
+
+		cout << "straightLine - Trajectory" << endl;
+		if(t <= poseDesired(4)){
+			
+			t2 = t*t;
+			t3 = t2*t;
+			t4 = t3*t;
+			t5 = t4*t;
+
+			waypoint << cTx(0)*t3 + cTx(1)*t4 + cTx(2)*t5,
+						cTy(0)*t3 + cTy(1)*t4 + cTy(2)*t5,
+						cTz(0)*t3 + cTz(1)*t4 + cTz(2)*t5,
+						angles::normalize_angle(cTyaw(0)*t3 + cTyaw(1)*t4 + cTyaw(2)*t5),
+						3*cTx(0)*t2 + 4*cTx(1)*t3 + 5*cTx(2)*t4,
+						3*cTy(0)*t2 + 4*cTy(1)*t3 + 5*cTy(2)*t4,
+						3*cTz(0)*t2 + 4*cTz(1)*t3 + 5*cTz(2)*t4,
+						3*cTyaw(0)*t2 + 4*cTyaw(1)*t3 + 5*cTyaw(2)*t4,
+						6*cTx(0)*t   + 12*cTx(1)*t2   + 20*cTx(2)*t3,
+						6*cTy(0)*t   + 12*cTy(1)*t2   + 20*cTy(2)*t3,
+						6*cTz(0)*t   + 12*cTz(1)*t2   + 5*cTz(2)*t3,
+						6*cTyaw(0)*t + 12*cTyaw(1)*t2 + 5*cTyaw(2)*t3;	
+
+		} else {
+
+			waypoint << poseDesired(0),
+						poseDesired(1),
+						poseDesired(2),
+						angles::normalize_angle(poseDesired(3)),
+						0.0,
+						0.0,
+						0.0,
+						0.0,
+						0.0,
+						0.0,
+						0.0,
+						0.0;
+		}
+	} else if(trajectory.compare("wayPoint") == 0){ //No Angle
+
+		cout << "wayPoint - Trajectory" << endl;
+		
+		waypoint << poseDesired(0),
+					poseDesired(1),
+					poseDesired(2),
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0;
+
+	} else if(trajectory.compare("goToPixelCenter") == 0){
+
+		cout << "Centralizando Pixel - Trajectory" << endl;
+		
+		waypoint << poseDesired(0),
+					poseDesired(1),
+					poseDesired(2),
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					0.0;
+	}
+
+	cout << "Current Time: " << t << endl;
+
+	if(autoMode == 1){
+		if(getIsControlStarted()){  //Controle habilitado e pronto para usar!
+			if (t <= tFinal){
+				ackMsgGlobal = (ackMsgGlobal & (~0x0F))|0x0F;
+				cout << "BUSY"<< endl;
+			}
+			else{
+				ackMsgGlobal = (ackMsgGlobal & (~0x0F))|0x0A;
+				cout << "FINISHED"<< endl;
+			}
+		}
+		else{
+			if(getFlagAbort()){
+				ackMsgGlobal = (ackMsgGlobal & (~0x0F))|0x05;
+				cout << "ABORTED" << endl;
+			}
+			else{
+				ackMsgGlobal = (ackMsgGlobal & (~0x0F))|0x00;
+				cout << "IDLE"<< endl;
+			}
+		}
+		ackMsg.data = ackMsgGlobal;
+		ackMessage_publisher.publish(ackMsg);	
+	}
+		
+
+	// waypoint_publisher.publish(mGoal); //verificar!!!!
+
+	return waypoint;
+		
+}	
+
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: ackControl Callback
 	*	  Created by: jrsbenevides
@@ -747,33 +986,32 @@ namespace DRONE {
 	}
 }
 
-
-int main(int argc, char **argv)
-{
+// int main(int argc, char **argv)
+// {
  
-	ros::init(argc, argv, "genTrajectory");
+// 	ros::init(argc, argv, "genTrajectory");
 	
- 	try {
+//  	try {
 
-		DRONE::Planner wptNode;
+// 		DRONE::Planner wptNode;
 
-		ros::Rate loop_rate(50);
+// 		ros::Rate loop_rate(50);
 
-		while (ros::ok())
-	   	{
-		    wptNode.TrajPlanner();
-			ros::spinOnce(); 
-			loop_rate.sleep();
-	   	}
+// 		while (ros::ok())
+// 	   	{
+// 		    wptNode.TrajPlanner();
+// 			ros::spinOnce(); 
+// 			loop_rate.sleep();
+// 	   	}
 		
-		ros::spin();
-	}
-	catch (const std::exception &e) {
-		ROS_FATAL_STREAM("An error has occurred: " << e.what());
-		exit(1);
-	}
+// 		ros::spin();
+// 	}
+// 	catch (const std::exception &e) {
+// 		ROS_FATAL_STREAM("An error has occurred: " << e.what());
+// 		exit(1);
+// 	}
 
-  	return 0;
-}
+//   	return 0;
+// }
 
 

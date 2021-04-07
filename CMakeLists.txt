@@ -147,9 +147,10 @@ set(${DRONE_DEV}_SOURCES
     src/drone/droneSystem.cpp
     src/drone/drone.cpp
     src/network/networkEstimator.cpp
+    src/planner/genTrajectory.cpp
     )
 add_executable(drone_dev_node ${${DRONE_DEV}_SOURCES})
-add_executable(traj_generator_node src/planner/genTrajectory.cpp)
+#add_executable(traj_generator_node src/planner/genTrajectory.cpp)
 #add_executable(network_estimator_node src/network/networkEstimator.cpp)
 
 
@@ -163,14 +164,14 @@ add_executable(traj_generator_node src/planner/genTrajectory.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(traj_generator_node traj_generator_cpp)
+#add_dependencies(traj_generator_node traj_generator_cpp)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
 target_link_libraries(drone_dev_node  ${catkin_LIBRARIES} ${Eigen_LIBRARIES})
-target_link_libraries(traj_generator_node ${catkin_LIBRARIES})
+#target_link_libraries(traj_generator_node ${catkin_LIBRARIES})
 #target_link_libraries(network_estimator_node ${catkin_LIBRARIES})
 
 #############

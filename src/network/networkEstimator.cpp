@@ -1,9 +1,9 @@
 /*
- * genTrajectory.cpp
+ * 	networkEstimator.cpp
  *
  *  Created on: Dec 28, 2020
  *      Author: João Benevides
- *      Modified:
+ *      Modified: jrsbenevides - April 7th 2021
  */
 
 #include "network/networkEstimator.h"
@@ -150,7 +150,7 @@ namespace DRONE {
 		double timeNow;
 
 		timeNow = ros::Time::now().toSec();
-		if(timeNow >= nextTimeToSend - updateRate*0.05){ //We passed already
+		if(timeNow >= nextTimeToSend - updateRate*coeffUpdRate){ //We passed already
 			if(nextTimeToSend > 0){						//After every iteration
 				if(flagSentToken ==  true){
 					nextTimeToSend += updateRate; //Do no update next Time to Send unless previous message was already sent
@@ -215,10 +215,11 @@ namespace DRONE {
 		setFlagReadyToSend(false);
 		setFlagComputeControl(true);
 		setToken(false);
-		updateRate          = 0.1; //10Hz
+		updateRate          = 0.2; //5Hz
+		coeffUpdRate		= 0.05;
 		isCMHEenabled		= 0;
-		nOfAgents			= 5;
-		bfSize              = 5;
+		nOfAgents			= _NOFAGENTS;
+		bfSize              = _BFSIZE;
 		PI 					= 3.141592653589793;
    		t 			  		= 0.0;
 		stepT				= 1; //number of steps in integration
@@ -299,9 +300,7 @@ namespace DRONE {
 		void Estimator::loadTopics(ros::NodeHandle &n) {
 
 		joy_subscriber 	   	  = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &Estimator::joyCallback, this);
-		
-		odomGlobal_publisher  = n.advertise<nav_msgs::Odometry>("/drone/odom_global", 1);
-		odomRcv_subscriber    = n.subscribe<nav_msgs::Odometry>("odom_imu", 3, &Estimator::odomRcvCallback, this);
+		odomRcv_subscriber    = n.subscribe<nav_msgs::Odometry>("/bebop/odom_global", 3, &Estimator::odomRcvCallback, this);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -795,7 +794,7 @@ namespace DRONE {
 		
 		// Checks if it is ready to go timewise and based on starting condition
 		if(flagTickStart == true){ //It means that tGlobalSendCont SHOULD have a meaningful computing value
-			if(tGlobalSendCont - ros::Time::now().toSec() <= updateRate*0.05){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
+			if(tGlobalSendCont - ros::Time::now().toSec() <= updateRate*coeffUpdRate){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
 				if(flagSentToken == false){
 					setFlagReadyToSend(true);
 				} else {

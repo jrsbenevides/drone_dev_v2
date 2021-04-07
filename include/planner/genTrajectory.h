@@ -61,10 +61,10 @@ namespace DRONE {
 		double 	PI;
 		double 	t;
 		double 	wAng;
-		double 	startTime;
 	  
 	  public:
 		
+		double 		startTime;
 		double 		amplitude;
 		double 		velMed;
 		string 		trajectory;
@@ -84,6 +84,7 @@ namespace DRONE {
 		void setFlagGlobalPlanner(bool state);
 		void setFlagAbort(bool state);
 		void setFlagAckParam(bool state);
+		void setStartTime(double timeValue);
 		void setposeDesired(VectorFive poseDesiredValue);
 		void setTrajectoryCoefficients(void);
 		bool getIsControlStarted(void);
@@ -100,6 +101,7 @@ namespace DRONE {
 		void loadSettings(ros::NodeHandle &n);
 		void refreshWang(void);
 		void TrajPlanner(void);
+		Vector12x1 getPlanTrajectory(const int& agent,const double& timeStamp);
 		void angle2quatZYX(VectorQuat& q, const double& yaw, const double& pitch, const double& roll);
 	};
 } // namespace DRONE
