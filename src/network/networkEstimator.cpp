@@ -68,8 +68,9 @@ namespace DRONE {
 		cout << "rcvArray reset and = " << rcvArray.transpose() << endl;
 	}
 
-	void Estimator::setCmdAgentDone(const int& agent){
+	void Estimator::setCmdAgentDone(const int& agent, const VectorQuat& input){
 		rcvArray(agent) = _DONE;
+		bfStruct[agent][bfSize-1][0].upost = input;
 	}
 
 	void Estimator::setToken(const bool& flag){
@@ -200,14 +201,7 @@ namespace DRONE {
 
 		
 		counter = 0; //para testes apenas
-
-		F = F.Identity();
-		Q = 1*Q.Identity();			 
-		R = 0.1*R.Identity();
-		for(int i = 0;i<nOfAgents;i++){
-			P[i] = MatrixXd::Identity(2,2);
-		}
-
+		
 		_EMPTY 		= 0;
 		_RECEIVED 	= 1;
 		_ESTIMATED	= 7;
@@ -237,7 +231,16 @@ namespace DRONE {
 
 		//Update Model
 		updateModel();
-		
+
+
+		//EKF Parameters
+		F = F.Identity();
+		Q = 1*Q.Identity();			 
+		R = 0.1*R.Identity();
+		for(int i = 0;i<nOfAgents;i++){
+			P[i] << P[i].Identity();
+		}
+
 		// Initialize a void message in the Buffer;
 		msgDrone.index 		= 0;
 		msgDrone.tsSensor   = 0;
@@ -279,6 +282,8 @@ namespace DRONE {
 		cout << "Index = " << rcvMsg.index <<  endl;
 		cout << "Tempo = " << rcvMsg.tsSensor <<  endl;
 		cout << "SOMA = " << rcvArray.sum() << endl;
+
+
 
 	}	
 
@@ -371,7 +376,10 @@ namespace DRONE {
 			 MatrixXd::Identity(4,4), MatrixXd::Zero(4,4);
 		B << Bc,
 			 MatrixXd::Zero(4,4);
-		
+
+		//DEBUG
+		cout << "A: " << A << endl;
+		cout << "B: " << B << endl;
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -505,6 +513,13 @@ namespace DRONE {
 		bfStruct[agent][0][0].index = curIndex + 1;
 		// cout << "Agora o agente eh " << agent << " e o pacote eh " << bfStruct[agent][0][0].index << endl; //DEBUG!!!
 
+		//Fills upre and upost with known input data
+		if(i>0){
+			bfStruct[agent][i][0].upre = bfStruct[agent][i-1][0].upost;
+		}
+		if(i<bfSize-1){
+			bfStruct[agent][i][0].upost = bfStruct[agent][i+1][0].upre;
+		}
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -537,6 +552,7 @@ namespace DRONE {
 	*  Last Modified: 
 	*
 	*  	 Description: Performs the prediction and update steps on the EKF estimator
+	*	 Status: Debugged on March 25th
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
 
@@ -558,6 +574,7 @@ namespace DRONE {
 		for(int k =0 ; k<(bfSize-1); k++){
 			// Keeps old estimation temporarily
 			sOld << s;
+
 			// Building Variable Elements
 			q << bfStruct[agent][k][0].data;
 			tBar = (1/s(0))*bfStruct[agent][k][0].tGSendCont - (s(1)/s(0));
@@ -569,7 +586,7 @@ namespace DRONE {
 			for(int j = 0;j<stepT;j++){
 				x = (MatrixXd::Identity(8,8) + deltaT*Ak)*x + deltaT*Bk*uPre;
 			}
-			
+
 			// Dynamics update - PART 2 - From arrival to next sampling- Using uComp
 			deltaT = (bfStruct[agent][k+1][0].tsSensor - tBar)/stepT;
 			uPost = bfStruct[agent][k][0].upost;
@@ -594,7 +611,7 @@ namespace DRONE {
 						  dPdBeta,  dDeltaT1dBeta,  dDeltaT2dBeta;
 			HMtxMask   << (A*A*q + A*B*uPre), (A*q+B*uPre), (A*q+B*uPost);
 			Hk = HMtxMask*HDerivMask.transpose();						  
-			
+				
 			//Kalman Steps
 			P[agent] = F*P[agent]*F.transpose() + Q;
 			y = zk - h;
@@ -678,20 +695,22 @@ namespace DRONE {
 					cout  << "Sucesso: Agente: " << agent << " e novo tamanho preenchido: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
 					if(bfStruct[agent][0][0].index >= bfSize){ //Buffer is ready to estimate
 						if(bfStruct[agent][0][0].index == bfSize){ //%Initial guess for estimate
-							
+
 							estParam.block<2,1>(0,agent) << 1,
 															0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
 							genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
 							genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
 							genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
-							genParam[agent].sigmat = 0.5;									
-							cout <<  "Built first estimate for agent " << agent <<  endl;
+							genParam[agent].sigmat = 0.5;	
+
+							// cout <<  "Built first estimate for agent " << agent <<  endl;
 
 							// PresentDebug(); //DEBUG
 							// flagEmergencyStop = true;//DEBUG
 						}
 						// if(flagEmergencyStop == false) //DEBUG
 						updateEKF(agent);
+						// flagEmergencyStop = true;//DEBUG
 					} else {
 						bfStruct[agent][bfSize-1][0].upre << 0.01, 0.01, 0.01, 0.01; //CORRIGIR PARA O COMANDO DE ENTRADA CORRETO NO LUGAR DE 0.01!!!
 					}
@@ -713,7 +732,6 @@ namespace DRONE {
 				// cout << "Entrei aqui!" << endl;    
 							
 				if(bfStruct[agent][0][0].index > bfSize){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
-					
 					sEst << estParam.block<2,1>(0,agent);
 					
 					tBar = (1/sEst(0))*tGlobalSendCont - (sEst(1)/sEst(0));

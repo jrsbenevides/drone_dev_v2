@@ -132,7 +132,7 @@ namespace DRONE {
 		void 		setFlagReadyToSend(const bool& flag);
 		void 		setFlagComputeControl(const bool& flag);
 		void 		setRcvArrayZero(void);
-		void 		setCmdAgentDone(const int& agent);
+		void 		setCmdAgentDone(const int& agent, const Vector4d& input);
 		void 		setToken(const bool& flag);
 
 		Vector8d 	getEstimatePose(const int agent);

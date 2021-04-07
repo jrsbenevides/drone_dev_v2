@@ -572,7 +572,7 @@ namespace DRONE {
 	// // Debug Version 
 	void System::ncs(){
 		int agent;
-		Vector4d input;
+		VectorQuat input;
 
 		if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){
 			network.ComputeEstimation(); 				// Tries to compute an estimate
@@ -594,7 +594,7 @@ namespace DRONE {
 				cmdArray.poses[agent].position.y = input(1);
 				cmdArray.poses[agent].position.z = input(2);
 				cmdArray.poses[agent].orientation.x = input(3);
-				network.setCmdAgentDone(agent); //network.rcvArray(agent) = 15;
+				network.setCmdAgentDone(agent, input); //network.rcvArray(agent) = 15; Coloco o input como a saída do sistema upost => não deixo nenhuma nova mensagem daquele agente entrar no calculo (por enquanto)
 				cout << "Calculada a entrada referente ao pacote " << network.bfStruct[agent][0][0].index << " do agente " << agent << endl;
 			}
 			
@@ -752,7 +752,7 @@ namespace DRONE {
 	  geometry_msgs::Twist cmd_vel_msg;
 	  std_msgs::UInt8 ackControl_msg;
 	  Vector3axes 	position;
-	  Vector4d		xTemp,input;
+	  VectorQuat	xTemp,input;
 
 	  // This if is enabled by user through joystick (DEFAULT = hold SELECT button)
 	  if(drone.getIsFlagEnable()&&(flagEmergency == 0)){ //flagEnable == true
