@@ -44,9 +44,11 @@ namespace DRONE {
 		bool    isFirstTimePass;
 		bool 	isReadyToSend;
 		bool 	isReadyCompControl;
+		bool 	isFlagEnableMAS;
 		bool 	flagSentToken;
 		bool 	flagTickStart;
 		bool 	flagEmergencyStop;
+		bool 	flagReuseEstimation;
 
 		int 	isCMHEenabled;
 
@@ -135,6 +137,10 @@ namespace DRONE {
 		void 		setRcvArrayZero(void);
 		void 		setCmdAgentDone(const int& agent, const Vector4d& input);
 		void 		setToken(const bool& flag);
+		void 		ResetForEstimPause(void);
+		void 		setZeroAllBuffers(void);
+		void 		setIsFlagEnable(const bool& value);
+		void 		setReuseEstimate(const bool& value);
 
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);
@@ -144,6 +150,8 @@ namespace DRONE {
 		bool 		getFlagComputeControl(void);
 		bool 		getFlagEmergencyStop(void);
 		bool 		getFlagEnter(void);
+		bool 		getIsFlagEnable(void);
+		bool 		getReuseEstimate(void);
 		
 
 	};

@@ -263,6 +263,8 @@ namespace DRONE {
 		//Sets OrbslamDead as false (default), meaning that it is still valid for use.
 		setIsOrbSlamDead(false);
 
+		flagMonitorSelect = false;
+
 		ackControlGlobal = 0x00;
 		countVicon		 = 1;
 
@@ -571,10 +573,21 @@ namespace DRONE {
 	
 	// // Debug Version 
 	void System::ncs(){
+		
 		int agent;
 		VectorQuat input;
 
-		if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())&&(drone.getIsFlagEnable())){
+		if((drone.getIsFlagEnable())){
+			
+			if(flagMonitorSelect == false){ //Detects rising edge
+				//Verifica se já houve alguma mudança alguma vez...novo
+				if(network.getReuseEstimate()){
+					cout << "faz algo" << endl;
+				}
+			}
+			flagMonitorSelect = true;
+
+			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){
 			network.ComputeEstimation(); 				// Tries to compute an estimate
 
 			if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
@@ -609,6 +622,13 @@ namespace DRONE {
 				network.setToken(true);					//Indicates to the network package that message has been sent already
 				//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
 			}
+		}
+		} else{
+			if(flagMonitorSelect == true){ //Detects falling edge
+				network.ResetForEstimPause(); 				//Resets functions for an eventual new estimation
+				network.setReuseEstimate(true); 			//Informs the system that there was already an estimation
+			}
+			flagMonitorSelect = false;
 		}
 	}			
 
@@ -959,9 +979,11 @@ namespace DRONE {
 
 		  if(joy->buttons[6]){
 		    drone.setIsFlagEnable(true);
+			network.setIsFlagEnable(true);
 		  }
 		  else{
 		  	drone.setIsFlagEnable(false);
+			network.setIsFlagEnable(false);
 		  }	
       } else{
 		  if (joy->buttons[5]) {

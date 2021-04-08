@@ -76,8 +76,54 @@ namespace DRONE {
 	void Estimator::setToken(const bool& flag){
 		flagSentToken = flag;
 	}
+
 	
+	void Estimator::ResetForEstimPause(void){
+
+		setFlagComputeControl(true);
+		setToken(false);					
+		rcvArray = rcvArray.Zero();
+		rcvArrayBuffer = rcvArrayBuffer.Zero();
+		setZeroAllBuffers();
+		nextTimeToSend      = -1;
+		flagEnter			= true;
+	}
+
+	void Estimator::setZeroAllBuffers(void){
+
+		Buffer msgDrone;
+		// Initialize a void message in the Buffer;
+		msgDrone.index 		= 0;
+		msgDrone.tsSensor   = 0;
+		msgDrone.tsArrival  = 0;
+		msgDrone.tGSendCont = 0;
+		msgDrone.upost      << 0,0,0,0;
+		msgDrone.upre      	<< 0,0,0,0;
+		msgDrone.data 		<< 0,0,0,0,0,0,0,0;
+		
+		for (int i = 0;i < nOfAgents ;i++){
+			for (int j = 0;j < bfSize ;j++){
+				for (int k = 0;k < 2 ;k++){
+						bfStruct[i][j][k] = msgDrone;
+				}
+			}
+		}
+		
+		for (int i = 0;i < bfSize ;i++){
+			bfTemp[i] = msgDrone;
+			for (int j = 0;j < 3 ;j++){
+				bfTempPending[i][j] = msgDrone;
+			}
+		}
+	}
+
+	void Estimator::setIsFlagEnable(const bool& value){
+		isFlagEnableMAS = value;
+	}
 	
+	void Estimator::setReuseEstimate(const bool& value){
+		flagReuseEstimation = value;
+	}
 
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
@@ -108,8 +154,15 @@ namespace DRONE {
 	bool Estimator::getFlagEnter(void){
 		return flagEnter;
 	}
-	
 
+	bool Estimator::getIsFlagEnable(void){
+		return isFlagEnableMAS;
+	}
+
+	bool Estimator::getReuseEstimate(void){
+		return flagReuseEstimation;
+	}	
+	
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: getThisTimeSend
@@ -191,7 +244,7 @@ namespace DRONE {
 	void Estimator::initEstimator(void){
 
 
-		Buffer msgDrone,rcvMsg;
+		Buffer rcvMsg;
 		geometry_msgs::Pose p;
 
 		rcvArray = rcvArray.Zero();
@@ -212,9 +265,11 @@ namespace DRONE {
 		flagDebug 			= true;
 		flagTickStart 		= false;
 		flagEmergencyStop 	= false;
+		isFlagEnableMAS		= false;
 		setFlagReadyToSend(false);
 		setFlagComputeControl(true);
 		setToken(false);
+		setReuseEstimate(false);
 		updateRate          = 0.2; //5Hz
 		coeffUpdRate		= 0.05;
 		isCMHEenabled		= 0;
@@ -242,43 +297,7 @@ namespace DRONE {
 			P[i] << P[i].Identity();
 		}
 
-		// Initialize a void message in the Buffer;
-		msgDrone.index 		= 0;
-		msgDrone.tsSensor   = 0;
-		msgDrone.tsArrival  = 0;
-		msgDrone.tGSendCont = 0;
-		msgDrone.upost      << 0,0,0,0;
-		msgDrone.upre      	<< 0,0,0,0;
-		msgDrone.data 		<< 0,0,0,0,0,0,0,0;
-
-		// setBuffer(msgDrone);
-
-		// rcvMsg = getBuffer(2);
-
-		// estPose.header.stamp = ros::Time::now(); // timestamp of creation of the msg
-		// estPose.header.frame_id = "map"; // frame id in which the array is published
-
-		// for (int k = 0;k < nOfAgents ;k++){
-		// 	p.position.x = 0.1 + (double) k;
-		// 	// p.position = 0.1, 0.2, 0.3;
-		// 	estPose.poses.push_back(p);
-		// 	cout << "teste1 = " << estPose.poses[k].position.x << endl;
-		// }
-		
-		for (int i = 0;i < nOfAgents ;i++){
-			for (int j = 0;j < bfSize ;j++){
-				for (int k = 0;k < 2 ;k++){
-						bfStruct[i][j][k] = msgDrone;
-				}
-			}
-		}
-		
-		for (int i = 0;i < bfSize ;i++){
-			bfTemp[i] = msgDrone;
-			for (int j = 0;j < 3 ;j++){
-				bfTempPending[i][j] = msgDrone;
-			}
-		}
+		setZeroAllBuffers();
 
 		cout << "Index = " << rcvMsg.index <<  endl;
 		cout << "Tempo = " << rcvMsg.tsSensor <<  endl;
@@ -694,13 +713,14 @@ namespace DRONE {
 					cout  << "Sucesso: Agente: " << agent << " e novo tamanho preenchido: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
 					if(bfStruct[agent][0][0].index >= bfSize){ //Buffer is ready to estimate
 						if(bfStruct[agent][0][0].index == bfSize){ //%Initial guess for estimate
-
-							estParam.block<2,1>(0,agent) << 1,
-															0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
-							genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
-							genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
-							genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
-							genParam[agent].sigmat = 0.5;	
+							if(getReuseEstimate()==false){  //Initial guess will be skipped if there was already a prior estimation
+								estParam.block<2,1>(0,agent) << 1,
+																0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
+								genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
+								genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
+								genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
+								genParam[agent].sigmat = 0.5;	
+							}
 
 							// cout <<  "Built first estimate for agent " << agent <<  endl;
 
@@ -856,67 +876,70 @@ namespace DRONE {
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
 
 	void Estimator::odomRcvCallback(const nav_msgs::Odometry::ConstPtr& odomRaw){
-		string agent;
-		int nAgent;
-		Buffer incomingMsg;
-		if(isCMHEenabled == 1){
 
-			// Initialize buffer during first loop
-			if(flagEnter){
-				nextTimeToSend  = 0;
-				// for (int i = 0;i < nOfAgents ;i++){
-				// 	for (int j = 0;j < bfSize ;j++){
-				// 		for (int k = 0;k < 2 ;k++){
-				// 				cout << "inicio = " << bfStruct[i][j][k].index << endl;
-				// 		}
-				// 	}
-				// }
-				flagEnter		= false;
-			}
+		if(getIsFlagEnable()){
+			string agent;
+			int nAgent;
+			Buffer incomingMsg;
+			if(isCMHEenabled == 1){
 
-			//Fill Header
-			agent = odomRaw->header.frame_id;
-			nAgent =  atoi(agent.c_str());   
-			incomingMsg.index = nAgent;
-
-			//DEBUG
-			// cout << "\n-----------------------------------" << endl;
-			cout << "Msg: Ag " <<  nAgent << ": RECEBIDO" << endl;
-
-			incomingMsg.tsArrival = ros::Time::now().toSec();
-			incomingMsg.tsSensor  = odomRaw->header.stamp.toSec();
-			cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
-			incomingMsg.tGSendCont = 0;
-			//Fill Data
-			incomingMsg.data << odomRaw->twist.twist.linear.x,
-								odomRaw->twist.twist.linear.y,
-								odomRaw->twist.twist.linear.z,
-								odomRaw->twist.twist.angular.z,
-								odomRaw->pose.pose.position.x,
-								odomRaw->pose.pose.position.y,
-								odomRaw->pose.pose.position.z,
-								odomRaw->pose.pose.orientation.z; //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
-								
-
-			if(rcvArray(nAgent) == _EMPTY){
-				
-				cout << "Status: RECEBIDO Buffer Principal" << endl; //DEBUG
-				setBuffer(incomingMsg); //Save on main receive buffer
-				rcvArray(nAgent) = _RECEIVED;
-
-			} else {
-				if(rcvArrayBuffer(nAgent) < 3){
-					cout << "Status: RECEBIDO Buffer Pendente : Ag = " << nAgent << endl;
-					setBufferNext(incomingMsg); 	//Save on pending receive buffer
-					rcvArrayBuffer(nAgent)++; //This call HAS TO come after the set above
-					cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
+				// Initialize buffer during first loop
+				if(flagEnter){
+					nextTimeToSend  = 0;
+					// for (int i = 0;i < nOfAgents ;i++){
+					// 	for (int j = 0;j < bfSize ;j++){
+					// 		for (int k = 0;k < 2 ;k++){
+					// 				cout << "inicio = " << bfStruct[i][j][k].index << endl;
+					// 		}
+					// 	}
+					// }
+					flagEnter		= false;
 				}
-			}	
 
-			// if(nAgent == 0){
-			// 	cout << "Msg Recebida:" << odomRaw->pose.pose.position.x << " " << odomRaw->pose.pose.position.y << " " << odomRaw->pose.pose.position.z << endl;
-			// }
+				//Fill Header
+				agent = odomRaw->header.frame_id;
+				nAgent =  atoi(agent.c_str());   
+				incomingMsg.index = nAgent;
 
+				//DEBUG
+				// cout << "\n-----------------------------------" << endl;
+				cout << "Msg: Ag " <<  nAgent << ": RECEBIDO" << endl;
+
+				incomingMsg.tsArrival = ros::Time::now().toSec();
+				incomingMsg.tsSensor  = odomRaw->header.stamp.toSec();
+				cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
+				incomingMsg.tGSendCont = 0;
+				//Fill Data
+				incomingMsg.data << odomRaw->twist.twist.linear.x,
+									odomRaw->twist.twist.linear.y,
+									odomRaw->twist.twist.linear.z,
+									odomRaw->twist.twist.angular.z,
+									odomRaw->pose.pose.position.x,
+									odomRaw->pose.pose.position.y,
+									odomRaw->pose.pose.position.z,
+									odomRaw->pose.pose.orientation.z; //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
+									
+
+				if(rcvArray(nAgent) == _EMPTY){
+					
+					cout << "Status: RECEBIDO Buffer Principal" << endl; //DEBUG
+					setBuffer(incomingMsg); //Save on main receive buffer
+					rcvArray(nAgent) = _RECEIVED;
+
+				} else {
+					if(rcvArrayBuffer(nAgent) < 3){
+						cout << "Status: RECEBIDO Buffer Pendente : Ag = " << nAgent << endl;
+						setBufferNext(incomingMsg); 	//Save on pending receive buffer
+						rcvArrayBuffer(nAgent)++; //This call HAS TO come after the set above
+						cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
+					}
+				}	
+
+				// if(nAgent == 0){
+				// 	cout << "Msg Recebida:" << odomRaw->pose.pose.position.x << " " << odomRaw->pose.pose.position.y << " " << odomRaw->pose.pose.position.z << endl;
+				// }
+
+			}
 		}
 	}	
 }

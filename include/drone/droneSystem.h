@@ -76,6 +76,7 @@ namespace DRONE {
 		bool 	 flagGoPixel;
 		bool 	 flagAckParam;
 		bool 	 isOrbSlamDead;
+		bool 	 flagMonitorSelect;
 		
 		double 	 PI;
 		double 	 vxAmpl;
