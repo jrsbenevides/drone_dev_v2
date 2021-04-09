@@ -141,6 +141,7 @@ namespace DRONE {
 		void 		setZeroAllBuffers(void);
 		void 		setIsFlagEnable(const bool& value);
 		void 		setReuseEstimate(const bool& value);
+		void 		setFlagEmergencyStop(const bool& value);
 
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);

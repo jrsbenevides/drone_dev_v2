@@ -253,7 +253,8 @@ namespace DRONE {
 		// Sets initial time
 		drone.setTimeNow(0);
 		// Sets default control status as: NOT running.
-		drone.setIsFlagEnable(false);
+		// drone.setIsFlagEnable(false);
+		drone.setIsFlagEnable(true); // #################################################################################### FOR DEBUG ONLY!!
 		// Sets to execute first run on AutoMode
 		setFlagGlobalPlanner(true);
 		// Sets block to enable pixel pursuit as TRUE (default)
@@ -576,53 +577,57 @@ namespace DRONE {
 		
 		int agent;
 		VectorQuat input;
-
+		Vector12x1 vecDesired;
 		if((drone.getIsFlagEnable())){
-			
+				
 			if(flagMonitorSelect == false){ //Detects rising edge
 				//Verifica se já houve alguma mudança alguma vez...novo
-				if(network.getReuseEstimate()){
-					cout << "faz algo" << endl;
-				}
+				// if(network.getReuseEstimate()){
+				// 	cout << "faz algo" << endl;
+				// }
+				flagMonitorSelect = true;
 			}
-			flagMonitorSelect = true;
 
 			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){
-			network.ComputeEstimation(); 				// Tries to compute an estimate
 
-			if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
-				MAScontrol();							//Only working for RLQR -> updateRLQRGain
-				network.setFlagComputeControl(false);
-			}
-			
-			agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
+				network.ComputeEstimation(); 				// Tries to compute an estimate
 
-			if(agent>=0){
-				if(network.bfStruct[agent][0][0].index > network.nOfAgents){
-					input = drone.MASControlInput(network.getEstimatePose(agent));
-				} else{
-					input = network.bfStruct[agent][network.bfSize - 1][0].upre;
+				if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
+
+					MAScontrol();							//Only working for RLQR -> updateRLQRGain	
+					network.setFlagComputeControl(false);
 				}
-				cmdArray.poses[agent].position.x = input(0);
-				cmdArray.poses[agent].position.y = input(1);
-				cmdArray.poses[agent].position.z = input(2);
-				cmdArray.poses[agent].orientation.x = input(3);
-				network.setCmdAgentDone(agent, input); //network.rcvArray(agent) = 15; Coloco o input como a saída do sistema upost => não deixo nenhuma nova mensagem daquele agente entrar no calculo (por enquanto)
-				cout << "Calculada a entrada referente ao pacote " << network.bfStruct[agent][0][0].index << " do agente " << agent << endl;
-			}
+				
+				agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
+
+				if(agent>=0){
+					// if(network.bfStruct[agent][0][0].index > network.nOfAgents){
+					vecDesired = planner.getPlanTrajectory(agent,network.getThisTimeSend());
+					input = drone.MASControlInput(network.getEstimatePose(agent),vecDesired);
+					// } 
+					// else{
+					// 	input = network.bfStruct[agent][network.bfSize - 1][0].upre; //Sends last received input
+					// }
+					cmdArray.poses[agent].position.x = input(0);
+					cmdArray.poses[agent].position.y = input(1);
+					cmdArray.poses[agent].position.z = input(2);
+					cmdArray.poses[agent].orientation.x = input(3);
+					network.setCmdAgentDone(agent, input); //network.rcvArray(agent) = 15; Coloco o input como a saída do sistema upost => não deixo nenhuma nova mensagem daquele agente entrar no calculo (por enquanto)
+					cout << "Calculada a entrada referente ao pacote " << network.bfStruct[agent][0][0].index << " do agente " << agent << endl;
+				}
 			
-			if(network.getFlagReadyToSend()){			//Publishes information to broadcast
-				contaEnvio++;
-				cout << "\n###############################" << endl;
-				cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
-				cout << "###############################\n" << endl;
-				cmd_global_publisher.publish(cmdArray);
-				network.setFlagComputeControl(true);
-				network.setRcvArrayZero(); 				//Resets array for receiving new messages
-				network.setToken(true);					//Indicates to the network package that message has been sent already
-				//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
+				if(network.getFlagReadyToSend()){			//Publishes information to broadcast
+					contaEnvio++;
+					cout << "\n###############################" << endl;
+					cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
+					cout << "###############################\n" << endl;
+					cmd_global_publisher.publish(cmdArray);
+					network.setFlagComputeControl(true);
+					network.setRcvArrayZero(); 				//Resets array for receiving new messages
+					network.setToken(true);					//Indicates to the network package that message has been sent already
+					//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
+				}
 			}
-		}
 		} else{
 			if(flagMonitorSelect == true){ //Detects falling edge
 				network.ResetForEstimPause(); 				//Resets functions for an eventual new estimation

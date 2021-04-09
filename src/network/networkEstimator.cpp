@@ -125,6 +125,10 @@ namespace DRONE {
 		flagReuseEstimation = value;
 	}
 
+	void Estimator::setFlagEmergencyStop(const bool& value){
+		flagEmergencyStop = value;
+	}	
+
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 	/* ########################################                 GETTERS                 ##########################################*/
@@ -264,14 +268,15 @@ namespace DRONE {
 		flagEnter			= true;
 		flagDebug 			= true;
 		flagTickStart 		= false;
-		flagEmergencyStop 	= false;
-		isFlagEnableMAS		= false;
+		setFlagEmergencyStop(false);
+		// setIsFlagEnable(false);
+		setIsFlagEnable(true); //############################################# FOR DEBUG ONLY
 		setFlagReadyToSend(false);
 		setFlagComputeControl(true);
 		setToken(false);
 		setReuseEstimate(false);
 		updateRate          = 0.2; //5Hz
-		coeffUpdRate		= 0.05;
+		coeffUpdRate		= 0.0217;
 		isCMHEenabled		= 0;
 		nOfAgents			= _NOFAGENTS;
 		bfSize              = _BFSIZE;
@@ -534,6 +539,8 @@ namespace DRONE {
 		//Fills upre and upost with known input data
 		if(i>0){
 			bfStruct[agent][i][0].upre = bfStruct[agent][i-1][0].upost;
+		}else{
+			bfStruct[agent][i][0].upre = bfStruct[agent][i][1].upost; //In the case of the first (i==0), we copy from the dropped element
 		}
 		if(i<bfSize-1){
 			bfStruct[agent][i][0].upost = bfStruct[agent][i+1][0].upre;
@@ -729,7 +736,7 @@ namespace DRONE {
 						}
 						// if(flagEmergencyStop == false) //DEBUG
 						updateEKF(agent);
-						// flagEmergencyStop = true;//DEBUG
+						// setFlagEmergencyStop(true);//DEBUG
 					} else {
 						bfStruct[agent][bfSize-1][0].upre << 0.01, 0.01, 0.01, 0.01; //CORRIGIR PARA O COMANDO DE ENTRADA CORRETO NO LUGAR DE 0.01!!!
 					}

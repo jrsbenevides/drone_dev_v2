@@ -1599,19 +1599,16 @@ namespace DRONE {
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
 
-	Vector4d Drone::MASControlInput(const Vector8d& q){	
+	Vector4d Drone::MASControlInput(const Vector8d& q, const Vector12x1& qdVector){	
 
 		Vector4d xDesired,dxDesired, d2xDesired,u,input;
 		Vector8d x,qDesired;
 
-		xDesired.head(3) 	= positionDesired;
-		xDesired(3) 		= yawDesired;
+		xDesired	= qdVector.head(4);
 
-		dxDesired.head(3) 	= dPositionDesired;
-		dxDesired(3) 	  	= dYawDesired;
+		dxDesired 	= qdVector.segment(3,4);
 
-		d2xDesired.head(3) 	= d2PositionDesired;
-		d2xDesired(3) 		= d2YawDesired;
+		d2xDesired 	= qdVector.tail(4);
 
 		qDesired 			<< dxDesired, xDesired;	
 

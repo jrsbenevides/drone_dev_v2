@@ -237,7 +237,7 @@ namespace DRONE {
 			void 		RLQR(Matrix8d& L, Matrix4x8& Krlqr, const Matrix8d& F, const Matrix8x4& G, const Matrix4d& Rr, const Matrix8d& Qr);
 			void 		RecursiveLQR(Matrix4x8& Klqr, const Matrix8d& F, const Matrix8x4& G, const Matrix4d& Rr, const Matrix8d& Qr);
 			void 		updateRLQRGain(void); 			  // Recursive LQR Gain Update
-			Vector4d 	MASControlInput(const Vector8d& q);
+			Vector4d 	MASControlInput(const Vector8d& q, const Vector12x1& qdesired);
 			
 			bool 		getIsOdomStarted(void);
 			bool 		getIsViconStarted(void);
