@@ -980,6 +980,7 @@ namespace DRONE {
       if(autoMode == 0){
 	      if (joy->buttons[14]) {
 			drone.setIsOdomStarted(false);
+			network.ZeroIsOdomStarted();
 	      } 
 
 		  if(joy->buttons[6]){

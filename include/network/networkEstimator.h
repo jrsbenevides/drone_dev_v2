@@ -25,6 +25,8 @@
 #include <string>
 #include <iostream>
 
+typedef Matrix<bool, _NOFAGENTS,  1> 		 VectorBoolAgent;
+
 // using namespace std;
 using namespace DRONE::Types;
 
@@ -56,11 +58,12 @@ namespace DRONE {
 		double 	t;
 	  
 	  public:
-
+		VectorBoolAgent 	isOdomStarted;
 	  	bool flagEnter, flagDebug;
 
 	    int counter; //PARA DEBUG APENAS 
 		int	nOfAgents,bfSize;
+		VectorQuat pose0;
 		Vector8d estPose[_NOFAGENTS]; // 1 = nOfAgents
 
 
@@ -142,6 +145,9 @@ namespace DRONE {
 		void 		setIsFlagEnable(const bool& value);
 		void 		setReuseEstimate(const bool& value);
 		void 		setFlagEmergencyStop(const bool& value);
+		void 		setIsOdomStarted(const bool& value,const int& agent);
+		void 		ZeroIsOdomStarted(void);
+		void 		setPoseZero(const VectorQuat& poseValue);
 
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);
@@ -153,8 +159,8 @@ namespace DRONE {
 		bool 		getFlagEnter(void);
 		bool 		getIsFlagEnable(void);
 		bool 		getReuseEstimate(void);
+		bool 		getIsOdomStarted(const int& agent);
 		
-
 	};
 } // namespace DRONE
 

@@ -129,6 +129,18 @@ namespace DRONE {
 		flagEmergencyStop = value;
 	}	
 
+	void Estimator::setIsOdomStarted(const bool& value,const int& agent){
+		isOdomStarted(agent) = value;
+	}	
+
+	void Estimator::ZeroIsOdomStarted(void){
+		isOdomStarted = isOdomStarted.Zero();
+	}	
+
+	void Estimator::setPoseZero(const VectorQuat& poseValue){
+		pose0 = poseValue;
+	}	
+
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 	/* ########################################                 GETTERS                 ##########################################*/
@@ -165,6 +177,11 @@ namespace DRONE {
 
 	bool Estimator::getReuseEstimate(void){
 		return flagReuseEstimation;
+	}	
+
+	bool Estimator::getIsOdomStarted(const int& agent){
+
+		return isOdomStarted(agent);
 	}	
 	
 
@@ -268,6 +285,7 @@ namespace DRONE {
 		flagEnter			= true;
 		flagDebug 			= true;
 		flagTickStart 		= false;
+		ZeroIsOdomStarted();
 		setFlagEmergencyStop(false);
 		// setIsFlagEnable(false);
 		setIsFlagEnable(true); //############################################# FOR DEBUG ONLY
@@ -292,6 +310,8 @@ namespace DRONE {
 
 		//Update Model
 		updateModel();
+
+		pose0 				= pose0.Zero();
 
 
 		//EKF Parameters
@@ -888,6 +908,7 @@ namespace DRONE {
 			string agent;
 			int nAgent;
 			Buffer incomingMsg;
+			VectorQuat poseNow;
 			if(isCMHEenabled == 1){
 
 				// Initialize buffer during first loop
@@ -917,6 +938,11 @@ namespace DRONE {
 				cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
 				incomingMsg.tGSendCont = 0;
 				//Fill Data
+
+				poseNow 		 << odomRaw->pose.pose.position.x,
+									odomRaw->pose.pose.position.y,
+									odomRaw->pose.pose.position.z,
+									odomRaw->pose.pose.orientation.z;
 				incomingMsg.data << odomRaw->twist.twist.linear.x,
 									odomRaw->twist.twist.linear.y,
 									odomRaw->twist.twist.linear.z,
@@ -926,6 +952,17 @@ namespace DRONE {
 									odomRaw->pose.pose.position.z,
 									odomRaw->pose.pose.orientation.z; //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
 									
+				/*Reset frame location*/
+				if (!getIsOdomStarted(nAgent)) {
+					// Conversion::quat2angleZYX(rpy,orientation);
+					// yawOdom = angles::normalize_angle(rpy(2));				//Added normalize...check if it works!!!
+					// drone.setPosition0(position,yawOdom);
+					// if((getFlagGlobalPlanner() == false)&&(autoMode == 1)){
+					// 	cout << "Frame Reset...Enabling Control..." << endl;
+					// 	flagZeroAuto = 1;
+					// }
+					setPoseZero(poseNow);
+				}
 
 				if(rcvArray(nAgent) == _EMPTY){
 					

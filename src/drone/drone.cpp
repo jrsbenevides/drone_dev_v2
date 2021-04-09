@@ -1606,7 +1606,7 @@ namespace DRONE {
 
 		xDesired	= qdVector.head(4);
 
-		dxDesired 	= qdVector.segment(3,4);
+		dxDesired 	= qdVector.segment(3,4); //starting at index 3, a vector containing 4 elements;
 
 		d2xDesired 	= qdVector.tail(4);
 
@@ -1644,7 +1644,8 @@ namespace DRONE {
 
 	void Drone::initDroneParam(void){
 
-		isOdomStarted 			= false;
+		setIsOdomStarted(false);
+		// isOdomStarted 			= false;
 		isControllerStarted 	= true;
 		isEKFonline				= false;
 		isFirstEKFit			= true;
