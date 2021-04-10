@@ -137,8 +137,30 @@ namespace DRONE {
 		isOdomStarted = isOdomStarted.Zero();
 	}	
 
-	void Estimator::setPoseZero(const VectorQuat& poseValue){
-		pose0 = poseValue;
+	void Estimator::setPoseZero(const VectorQuat& poseValue, const int& agent){
+		
+		yaw0[agent] = poseValue(3);
+
+		RotGlobal[agent].block<2,2>(0,0) << cos(yaw0[agent]), -sin(yaw0[agent]),
+									 		sin(yaw0[agent]),  cos(yaw0[agent]);
+		pose0[agent] = poseValue;
+	}	
+
+	void Estimator::setPosition(Vector3axes& position, const int& agent){
+		position 		= RotGlobal[agent].transpose()*(position - pose0[agent].head(3));
+	}	
+
+	double Estimator::setOrientation(const VectorQuat& orientationValue, const int& agent){
+		
+		Vector3axes rpy;
+				
+		VectorQuat orientationRaw;
+
+		orientationRaw = orientationValue;
+
+	    Conversion::quat2angleZYX(rpy,orientationRaw);
+
+	    return angles::normalize_angle(rpy(2)-yaw0[agent]);
 	}	
 
 	/* ###########################################################################################################################*/
@@ -305,14 +327,13 @@ namespace DRONE {
 		K 					<<  1.74199, 0.94016, 1.54413, 0.89628, 3.34885, 3.29467, 6.51209, 3.92187;
 		Rotation 			= Rotation.Identity();
 
+		bufMaxSize = _BUFMAXSIZE;
+
 		loadTopics(n);
 		loadSettings(n);
 
 		//Update Model
 		updateModel();
-
-		pose0 				= pose0.Zero();
-
 
 		//EKF Parameters
 		F = F.Identity();
@@ -320,6 +341,11 @@ namespace DRONE {
 		R = 0.1*R.Identity();
 		for(int i = 0;i<nOfAgents;i++){
 			P[i] << P[i].Identity();
+
+			//pose zero parameters
+			RotGlobal[i] << RotGlobal[i].Identity();
+			pose0[i]  << pose0[i].Zero();
+			yaw0[i] = 0.0;
 		}
 
 		setZeroAllBuffers();
@@ -908,7 +934,10 @@ namespace DRONE {
 			string agent;
 			int nAgent;
 			Buffer incomingMsg;
-			VectorQuat poseNow;
+			VectorQuat poseRcv,orientation;
+			Vector3axes rpy,positionNow;
+			double yawOdom,yawThisFrame;
+
 			if(isCMHEenabled == 1){
 
 				// Initialize buffer during first loop
@@ -939,30 +968,36 @@ namespace DRONE {
 				incomingMsg.tGSendCont = 0;
 				//Fill Data
 
-				poseNow 		 << odomRaw->pose.pose.position.x,
+				orientation 	<< 	odomRaw->pose.pose.orientation.w, 
+									odomRaw->pose.pose.orientation.x, 
+									odomRaw->pose.pose.orientation.y, 
+									odomRaw->pose.pose.orientation.z;				
+
+				positionNow 	<< 	odomRaw->pose.pose.position.x,
 									odomRaw->pose.pose.position.y,
-									odomRaw->pose.pose.position.z,
-									odomRaw->pose.pose.orientation.z;
+									odomRaw->pose.pose.position.z;
+									
+									
+				/*Reset frame location*/
+				if (!getIsOdomStarted(nAgent)) {
+					Conversion::quat2angleZYX(rpy,orientation);
+					yawOdom = angles::normalize_angle(rpy(2));				//Added normalize...check if it works!!!
+					poseRcv << positionNow,yawOdom;
+					setPoseZero(poseRcv,nAgent);
+					setIsOdomStarted(true,nAgent);
+				}
+
+				//Based on initial pose, calculate transformed pose			
+				setPosition(positionNow,nAgent);
+				yawThisFrame = setOrientation(orientation,nAgent);
+				
+				
 				incomingMsg.data << odomRaw->twist.twist.linear.x,
 									odomRaw->twist.twist.linear.y,
 									odomRaw->twist.twist.linear.z,
 									odomRaw->twist.twist.angular.z,
-									odomRaw->pose.pose.position.x,
-									odomRaw->pose.pose.position.y,
-									odomRaw->pose.pose.position.z,
-									odomRaw->pose.pose.orientation.z; //CORRIGIR ISSO AQUI PARA A CONVERSÃO DE QUATERNIO
-									
-				/*Reset frame location*/
-				if (!getIsOdomStarted(nAgent)) {
-					// Conversion::quat2angleZYX(rpy,orientation);
-					// yawOdom = angles::normalize_angle(rpy(2));				//Added normalize...check if it works!!!
-					// drone.setPosition0(position,yawOdom);
-					// if((getFlagGlobalPlanner() == false)&&(autoMode == 1)){
-					// 	cout << "Frame Reset...Enabling Control..." << endl;
-					// 	flagZeroAuto = 1;
-					// }
-					setPoseZero(poseNow);
-				}
+									positionNow,
+									yawThisFrame;
 
 				if(rcvArray(nAgent) == _EMPTY){
 					
@@ -971,7 +1006,7 @@ namespace DRONE {
 					rcvArray(nAgent) = _RECEIVED;
 
 				} else {
-					if(rcvArrayBuffer(nAgent) < 3){
+					if(rcvArrayBuffer(nAgent) < bufMaxSize){
 						cout << "Status: RECEBIDO Buffer Pendente : Ag = " << nAgent << endl;
 						setBufferNext(incomingMsg); 	//Save on pending receive buffer
 						rcvArrayBuffer(nAgent)++; //This call HAS TO come after the set above

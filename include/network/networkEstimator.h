@@ -8,13 +8,16 @@
 #ifndef NETWORKESTIMATOR_H_
 #define NETWORKESTIMATOR_H_
 
-#define _NOFAGENTS 1
+#define _NOFAGENTS 5
 #define _BFSIZE 5
+#define _BUFMAXSIZE 3
 
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseArray.h>
 #include "angles/angles.h"
+#include "tf/transform_datatypes.h"
+#include "tf_conversions/tf_eigen.h"
 #include "drone/operations.h"
 #include "drone/definitions.h"
 #include "nav_msgs/Odometry.h"
@@ -24,6 +27,7 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+
 
 typedef Matrix<bool, _NOFAGENTS,  1> 		 VectorBoolAgent;
 
@@ -62,8 +66,10 @@ namespace DRONE {
 	  	bool flagEnter, flagDebug;
 
 	    int counter; //PARA DEBUG APENAS 
-		int	nOfAgents,bfSize;
-		VectorQuat pose0;
+		int	nOfAgents,bfSize,bufMaxSize;
+		VectorQuat pose0[_NOFAGENTS];
+		Matrix3d RotGlobal[_NOFAGENTS];
+		double yaw0[_NOFAGENTS];
 		Vector8d estPose[_NOFAGENTS]; // 1 = nOfAgents
 
 
@@ -104,7 +110,7 @@ namespace DRONE {
 
 		Buffer bfTemp[_BFSIZE]; //[] = bfSize
 
-		Buffer bfTempPending[_BFSIZE][3]; //[] = bfSize,tamMaxBuffer
+		Buffer bfTempPending[_BFSIZE][_BUFMAXSIZE]; //[] = bfSize,tamMaxBuffer
 
 		Buffer bfStruct[_NOFAGENTS][_BFSIZE][2]; //nOfAgents,bfSize, 2
 
@@ -147,7 +153,9 @@ namespace DRONE {
 		void 		setFlagEmergencyStop(const bool& value);
 		void 		setIsOdomStarted(const bool& value,const int& agent);
 		void 		ZeroIsOdomStarted(void);
-		void 		setPoseZero(const VectorQuat& poseValue);
+		void 		setPoseZero(const VectorQuat& poseValue, const int& agent);
+		void 		setPosition(Vector3axes& position, const int& agent);
+		double 		setOrientation (const VectorQuat& orientationValue, const int& agent);
 
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);
