@@ -309,8 +309,7 @@ namespace DRONE {
 		flagTickStart 		= false;
 		ZeroIsOdomStarted();
 		setFlagEmergencyStop(false);
-		// setIsFlagEnable(false);
-		setIsFlagEnable(true); //############################################# FOR DEBUG ONLY
+		setIsFlagEnable(false); 
 		setFlagReadyToSend(false);
 		setFlagComputeControl(true);
 		setToken(false);
@@ -370,7 +369,7 @@ namespace DRONE {
 		void Estimator::loadTopics(ros::NodeHandle &n) {
 
 		joy_subscriber 	   	  = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &Estimator::joyCallback, this);
-		odomRcv_subscriber    = n.subscribe<nav_msgs::Odometry>("/bebop/odom_global", 3, &Estimator::odomRcvCallback, this);
+		odomRcv_subscriber    = n.subscribe<nav_msgs::Odometry>("/odom_global", _NOFAGENTS, &Estimator::odomRcvCallback, this);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -523,10 +522,10 @@ namespace DRONE {
 				terminalCondition = true;
 			}
 			else{
-				cout << "eita" << endl;
-				cout << "O tempo de sensor no espaco " << i << " era de: " << bfStruct[agent][i][0].tsSensor << endl;
-				cout << "O tempo de sensor no pkt era de: " << pkt.tsSensor << endl;
-				cout << "E a diferença era de: " << pkt.tsSensor - bfStruct[agent][i][0].tsSensor << endl;
+				// cout << "eita" << endl;
+				// cout << "O tempo de sensor no espaco " << i << " era de: " << bfStruct[agent][i][0].tsSensor << endl;
+				// cout << "O tempo de sensor no pkt era de: " << pkt.tsSensor << endl;
+				// cout << "E a diferença era de: " << pkt.tsSensor - bfStruct[agent][i][0].tsSensor << endl;
 				i--;
 			}
 		}
@@ -606,15 +605,15 @@ namespace DRONE {
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
 
 	void Estimator::joyCallback(const sensor_msgs::Joy::ConstPtr& joy){
-		if(isCMHEenabled == 1){
-		  /*Enables "Automatic Control Mode" while pressing this button*/
-		  if(joy->buttons[6]){
-		    cout << "on" << endl;
-		  }
-		  else{
-			cout << "off" << endl;
-		  }
-		}
+		// if(isCMHEenabled == 1){
+		//   /*Enables "Automatic Control Mode" while pressing this button*/
+		//   if(joy->buttons[6]){
+		//     cout << "on" << endl;
+		//   }
+		//   else{
+		// 	cout << "off" << endl;
+		//   }
+		// }
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -950,6 +949,7 @@ namespace DRONE {
 					// 		}
 					// 	}
 					// }
+					// counter++;
 					flagEnter		= false;
 				}
 
@@ -964,7 +964,9 @@ namespace DRONE {
 
 				incomingMsg.tsArrival = ros::Time::now().toSec();
 				incomingMsg.tsSensor  = odomRaw->header.stamp.toSec();
-				cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
+				// cout << "tempoArrival = " << incomingMsg.tsArrival << endl;
+				// cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
+
 				incomingMsg.tGSendCont = 0;
 				//Fill Data
 
@@ -976,8 +978,7 @@ namespace DRONE {
 				positionNow 	<< 	odomRaw->pose.pose.position.x,
 									odomRaw->pose.pose.position.y,
 									odomRaw->pose.pose.position.z;
-									
-									
+
 				/*Reset frame location*/
 				if (!getIsOdomStarted(nAgent)) {
 					Conversion::quat2angleZYX(rpy,orientation);
@@ -1001,16 +1002,16 @@ namespace DRONE {
 
 				if(rcvArray(nAgent) == _EMPTY){
 					
-					cout << "Status: RECEBIDO Buffer Principal" << endl; //DEBUG
+					// cout << "Status: RECEBIDO Buffer Principal" << endl; //DEBUG
 					setBuffer(incomingMsg); //Save on main receive buffer
 					rcvArray(nAgent) = _RECEIVED;
 
 				} else {
 					if(rcvArrayBuffer(nAgent) < bufMaxSize){
-						cout << "Status: RECEBIDO Buffer Pendente : Ag = " << nAgent << endl;
+						// cout << "Status: RECEBIDO Buffer Pendente : Ag = " << nAgent << endl;
 						setBufferNext(incomingMsg); 	//Save on pending receive buffer
 						rcvArrayBuffer(nAgent)++; //This call HAS TO come after the set above
-						cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
+						// cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
 					}
 				}	
 

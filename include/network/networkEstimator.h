@@ -8,7 +8,7 @@
 #ifndef NETWORKESTIMATOR_H_
 #define NETWORKESTIMATOR_H_
 
-#define _NOFAGENTS 5
+#define _NOFAGENTS 1
 #define _BFSIZE 5
 #define _BUFMAXSIZE 3
 

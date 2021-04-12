@@ -1646,6 +1646,7 @@ namespace DRONE {
 
 		setIsOdomStarted(false);
 		// isOdomStarted 			= false;
+		setIsFlagEnable(true); //######################################################## FOR DEBUG ONLY
 		isControllerStarted 	= true;
 		isEKFonline				= false;
 		isFirstEKFit			= true;

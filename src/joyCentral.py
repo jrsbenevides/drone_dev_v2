@@ -16,7 +16,7 @@ class globalPlanner:
         self.cmd_pub     = rospy.Publisher("/cmd_global", PoseArray, queue_size=1)
         
         self.cmd_sub     = rospy.Subscriber("/bebop/cmd_velMAS", Twist, self.callback_cmd)
-        self.reset_sub    = rospy.Subscriber("/bebop/resetMAS", Empty, self.callback_reset) 
+        self.reset_sub   = rospy.Subscriber("/bebop/resetMAS", Empty, self.callback_reset) 
         self.land_sub    = rospy.Subscriber("/bebop/landMAS", Empty, self.callback_land)      
         self.takeoff_sub = rospy.Subscriber("/bebop/takeoffMAS", Empty, self.callback_takeoff)
         

@@ -328,11 +328,16 @@ namespace DRONE {
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	void System::loadTopics(ros::NodeHandle &n) {
-		cmd_vel_publisher 		 = n.advertise<geometry_msgs::Twist>("/drone/cmd_vel",1);
+		
 		cmd_global_publisher	 = n.advertise<geometry_msgs::PoseArray>("cmd_global",1);
-		transfPosition_publisher = n.advertise<nav_msgs::Odometry>("/drone/transf_position",1);
 		joy_subscriber 			 = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &System::joyCallback, this);
+		
+
+
+		//No use for NCS
 		odom_subscriber 		 = n.subscribe<nav_msgs::Odometry>("/drone/odom", 1, &System::odomCallback, this);
+		cmd_vel_publisher 		 = n.advertise<geometry_msgs::Twist>("/drone/cmd_vel",1);
+		transfPosition_publisher = n.advertise<nav_msgs::Odometry>("/drone/transf_position",1);
 		waypoint_subscriber 	 = n.subscribe<nav_msgs::Odometry>("/drone/waypoint", 1, &System::waypointCallback, this);
 		orbslam_subscriber 	 	 = n.subscribe<nav_msgs::Odometry>("/scale/log", 1, &System::orbSlamCallback, this);
 		vicon_subscriber 	 	 = n.subscribe<geometry_msgs::TransformStamped>("/vicon/bebop/bebop", 1, &System::viconCallback, this);
@@ -585,6 +590,7 @@ namespace DRONE {
 				// if(network.getReuseEstimate()){
 				// 	cout << "faz algo" << endl;
 				// }
+				planner.setStartTime(ros::Time::now().toSec());
 				flagMonitorSelect = true;
 			}
 
@@ -632,6 +638,7 @@ namespace DRONE {
 			if(flagMonitorSelect == true){ //Detects falling edge
 				network.ResetForEstimPause(); 				//Resets functions for an eventual new estimation
 				network.setReuseEstimate(true); 			//Informs the system that there was already an estimation
+				contaEnvio = 0;
 			}
 			flagMonitorSelect = false;
 		}
@@ -986,6 +993,7 @@ namespace DRONE {
 		  if(joy->buttons[6]){
 		    drone.setIsFlagEnable(true);
 			network.setIsFlagEnable(true);
+			// cout << "oi" << endl;
 		  }
 		  else{
 		  	drone.setIsFlagEnable(false);
