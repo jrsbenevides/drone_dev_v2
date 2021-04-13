@@ -335,15 +335,15 @@ namespace DRONE {
 
 
 		//No use for NCS
-		odom_subscriber 		 = n.subscribe<nav_msgs::Odometry>("/drone/odom", 1, &System::odomCallback, this);
-		cmd_vel_publisher 		 = n.advertise<geometry_msgs::Twist>("/drone/cmd_vel",1);
-		transfPosition_publisher = n.advertise<nav_msgs::Odometry>("/drone/transf_position",1);
-		waypoint_subscriber 	 = n.subscribe<nav_msgs::Odometry>("/drone/waypoint", 1, &System::waypointCallback, this);
-		orbslam_subscriber 	 	 = n.subscribe<nav_msgs::Odometry>("/scale/log", 1, &System::orbSlamCallback, this);
-		vicon_subscriber 	 	 = n.subscribe<geometry_msgs::TransformStamped>("/vicon/bebop/bebop", 1, &System::viconCallback, this);
-		targetMsg_subscriber 	 = n.subscribe<geometry_msgs::PoseStamped>("planejamento", 1, &System::planCallback, this);
-		ackGlobal_subscriber     = n.subscribe<std_msgs::UInt8>("statusPlanning",1, &System::statusPlanCallback, this);
-		ackControl_publisher 	 = n.advertise<std_msgs::UInt8>("statusAutoControl", 1);
+		// odom_subscriber 		 = n.subscribe<nav_msgs::Odometry>("/drone/odom", 1, &System::odomCallback, this);
+		// cmd_vel_publisher 		 = n.advertise<geometry_msgs::Twist>("/drone/cmd_vel",1);
+		// transfPosition_publisher = n.advertise<nav_msgs::Odometry>("/drone/transf_position",1);
+		// waypoint_subscriber 	 = n.subscribe<nav_msgs::Odometry>("/drone/waypoint", 1, &System::waypointCallback, this);
+		// orbslam_subscriber 	 	 = n.subscribe<nav_msgs::Odometry>("/scale/log", 1, &System::orbSlamCallback, this);
+		// vicon_subscriber 	 	 = n.subscribe<geometry_msgs::TransformStamped>("/vicon/bebop/bebop", 1, &System::viconCallback, this);
+		// targetMsg_subscriber 	 = n.subscribe<geometry_msgs::PoseStamped>("planejamento", 1, &System::planCallback, this);
+		// ackGlobal_subscriber     = n.subscribe<std_msgs::UInt8>("statusPlanning",1, &System::statusPlanCallback, this);
+		// ackControl_publisher 	 = n.advertise<std_msgs::UInt8>("statusAutoControl", 1);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

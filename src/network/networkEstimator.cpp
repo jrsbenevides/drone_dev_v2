@@ -530,14 +530,14 @@ namespace DRONE {
 			}
 		}
 
-		if(terminalCondition == true){
-			cout << "Sucesso >> ";
-			if(pkt.tsSensor == bfStruct[agent][i][0].tsSensor)
-				cout << "total" << endl;
-			else
-				cout << "parcial" << endl;
+		// if(terminalCondition == true){
+		// 	cout << "Sucesso >> ";
+		// 	if(pkt.tsSensor == bfStruct[agent][i][0].tsSensor)
+		// 		cout << "total" << endl;
+		// 	else
+		// 		cout << "parcial" << endl;
 
-		}
+		// }
 
 		//indexBf = i;  //
 		return terminalCondition;
@@ -747,7 +747,7 @@ namespace DRONE {
 		Matrix8d Ak;
 		Matrix8x4 Bk;
 
-		tGlobalSendCont = getThisTimeSend(); // TROCAR ESSE VALOR POR ALGO REAL! FAZER AS CONTAS CERTINHO!!!
+		tGlobalSendCont = getThisTimeSend(); 
 
 		if(rcvArray.maxCoeff() > _EMPTY){
 
@@ -773,18 +773,12 @@ namespace DRONE {
 								genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
 								genParam[agent].sigmat = 0.5;	
 							}
-
-							// cout <<  "Built first estimate for agent " << agent <<  endl;
-
-							// PresentDebug(); //DEBUG
-							// flagEmergencyStop = true;//DEBUG
 						}
-						// if(flagEmergencyStop == false) //DEBUG
 						updateEKF(agent);
-						// setFlagEmergencyStop(true);//DEBUG
-					} else {
-						bfStruct[agent][bfSize-1][0].upre << 0.01, 0.01, 0.01, 0.01; //CORRIGIR PARA O COMANDO DE ENTRADA CORRETO NO LUGAR DE 0.01!!!
 					}
+					// else if(bfStruct[agent][0][0].index == 1){
+					// 	bfStruct[agent][bfSize-1][0].upre << 0.0, 0.0, 0.0, 0.0;
+					// }
 					cout <<  "Montado o pacote " << bfStruct[agent][0][0].index <<  " do agente " << agent <<  endl;
 				} else {
 					//CASO NAO CONSIGA ADICIONAR AO PACOTE
@@ -814,50 +808,45 @@ namespace DRONE {
 
 					for(int j = 0; j<stepT; j++){
 						x = (MatrixXd::Identity(8,8)+deltaT*Ak)*x + deltaT*Bk*uPre;
-						// x = (eye(dataSize)+deltaT*Ak)*x + deltaT*Bk*uComp;
 					}
 				} else{
 					x     = bfStruct[agent][bfSize-1][0].data;
-					uComp = bfStruct[agent][bfSize-1][0].upre;
+					// uComp = bfStruct[agent][bfSize-1][0].upre;
 				}	
 
 				// Make it available for the controller
 				setEstimatePose(x,agent);
 							
 			} else{
-		
-				if(flagDebug){
-					//AGUARDANDO CHEGADA DE MENSAGEM OU FINALIZACAO DE CALCULO.
-					// cout << "Buffer temporario já está vazio ou aguardando liberacao" << endl;
+				//AGUARDANDO CHEGADA DE MENSAGEM OU FINALIZACAO DE CALCULO.
+				// cout << "Buffer temporario já está vazio ou aguardando liberacao" << endl;
 
-					if(rcvArrayBuffer.maxCoeff() > _EMPTY){ // There is something inside pending buffer!!
-						// if(tGlobalSendCont - ros::Time::now().toSec() > availableTime){ //Is it worth treating now or not? based on available time (about to send?)
-						flagExitSearch = false;
-						
-						cout << "Hora de recuperar a info de buffer pendente" << endl;
+				if(rcvArrayBuffer.maxCoeff() > _EMPTY){ // There is something inside pending buffer!!
+					// if(tGlobalSendCont - ros::Time::now().toSec() > availableTime){ //Is it worth treating now or not? based on available time (about to send?)
+					flagExitSearch = false;
+					
+					cout << "Hora de recuperar a info de buffer pendente" << endl;
 
-						for(int i=0;(i<nOfAgents)&&(!flagExitSearch);i++){
-							tambuf = rcvArrayBuffer(i); //Amount of stored packages for a determined agent
-							if(tambuf>0){
-								if(rcvArray(i) == _EMPTY){
-									cout << "Recuperando do agente " << i << " no idx " << tambuf -1 << endl;
-									bfTemp[i] = bfTempPending[i][tambuf-1]; //tambuf-1 corresponds to the index of where that last information was stored
-									rcvArray(i)= _RECEIVED;
-									rcvArrayBuffer(i)--;
-									flagExitSearch = true;
-									cout << "Info de buffer pendente para o agente " << i << " esvaziada." << endl;
-								}
+					for(int i=0;(i<nOfAgents)&&(!flagExitSearch);i++){
+						tambuf = rcvArrayBuffer(i); //Amount of stored packages for a determined agent
+						if(tambuf>0){
+							if(rcvArray(i) == _EMPTY){
+								cout << "Recuperando do agente " << i << " no idx " << tambuf -1 << endl;
+								bfTemp[i] = bfTempPending[i][tambuf-1]; //tambuf-1 corresponds to the index of where that last information was stored
+								rcvArray(i)= _RECEIVED;
+								rcvArrayBuffer(i)--;
+								flagExitSearch = true;
+								cout << "Info de buffer pendente para o agente " << i << " esvaziada." << endl;
 							}
 						}
-						if(flagExitSearch == false){
-							cout << "Buffer principal ainda esperando ser esvaziado para adicionar qualquer coisa" << endl;
-						}
-						// }
 					}
-					cout << "Buffer Chegada = " << rcvArray.transpose() << endl;
-					cout << "Buffer Pendente = " << rcvArrayBuffer.transpose() << endl;
-					flagDebug = true;
+					if(flagExitSearch == false){
+						cout << "Buffer principal ainda esperando ser esvaziado para adicionar qualquer coisa" << endl;
+					}
+					// }
 				}
+				cout << "Buffer Chegada = " << rcvArray.transpose() << endl;
+				cout << "Buffer Pendente = " << rcvArrayBuffer.transpose() << endl;
 			}
 		}
 		
