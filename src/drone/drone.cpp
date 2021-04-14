@@ -736,6 +736,14 @@ namespace DRONE {
 		Krlqr = K;
 	}
 
+	void Drone::setF2(const Matrix4d& matrix){
+		F2 = matrix;
+	}
+
+	void Drone::setUpdateRate(const double& value){
+		updateRate = value;
+	}
+
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 	/* ########################################                 GETTERS                 ##########################################*/
@@ -1384,13 +1392,17 @@ namespace DRONE {
 
 			K = K.Zero();
 
-			Acont << -F2*Rotation.transpose(), MatrixXd::Zero(4,4),
+			F2 = getF2();
+
+			// Acont << -F2*Rotation.transpose(), MatrixXd::Zero(4,4),
+			// 		 MatrixXd::Identity(4,4),  MatrixXd::Zero(4,4);
+			Acont << F2, MatrixXd::Zero(4,4),
 					 MatrixXd::Identity(4,4),  MatrixXd::Zero(4,4);
 
 			Bcont << MatrixXd::Identity(4,4),
 					 MatrixXd::Zero(4,4);
 
-			Conversion::c2d(Adisc,Bdisc,Acont,Bcont,0.02); //UPDATE RATE --DEBUG
+			Conversion::c2d(Adisc,Bdisc,Acont,Bcont,0.05); //UPDATE RATE --DEBUG
 
 			RecursiveLQR(K,Adisc,Bdisc,Rr,Qr);
 
@@ -1745,6 +1757,8 @@ namespace DRONE {
 
 		poseDesired 			= poseDesired.Zero();
 		sumPixelError   		= sumPixelError.Zero();
+
+		updateRate				= 0.01;
 
 		setFreezeConstant(1);
 	}

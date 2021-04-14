@@ -75,7 +75,8 @@ namespace DRONE {
 			double d2YawDesired;
 			double pastTime;
 			double timeErrOld;
-			double  freezeConstant;
+			double freezeConstant;
+			double updateRate;
 
 			Matrix3d RotGlobal;
 			
@@ -172,7 +173,10 @@ namespace DRONE {
 			void 		zeroSumPixelError(void);
 			void  		setFreezeConstant(double value);
 			void		setControlGain(const Matrix4x8& K);
+			void 		setF2(const Matrix4d& matrix);
+			void 		setUpdateRate(const double& value);
 			Matrix4x8	getControlGain(void);
+			
 
 
 			double 		getTimeNow(void);

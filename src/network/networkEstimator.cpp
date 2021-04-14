@@ -163,6 +163,9 @@ namespace DRONE {
 	    return angles::normalize_angle(rpy(2)-yaw0[agent]);
 	}	
 
+	Matrix4d Estimator::getK2(void){
+		return K2;
+	}
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 	/* ########################################                 GETTERS                 ##########################################*/
@@ -205,6 +208,10 @@ namespace DRONE {
 
 		return isOdomStarted(agent);
 	}	
+
+	double Estimator::getUpdateRate(void){
+		return updateRate;
+	}
 	
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -287,9 +294,8 @@ namespace DRONE {
 	void Estimator::initEstimator(void){
 
 
-		Buffer rcvMsg;
-		geometry_msgs::Pose p;
-
+		GeneralParameters paramZero;
+		
 		rcvArray = rcvArray.Zero();
 		rcvArrayBuffer = rcvArrayBuffer.Zero();
 
@@ -314,8 +320,8 @@ namespace DRONE {
 		setFlagComputeControl(true);
 		setToken(false);
 		setReuseEstimate(false);
-		updateRate          = 0.2; //5Hz
-		coeffUpdRate		= 0.0217;
+		updateRate          = 0.05; //5Hz
+		coeffUpdRate		= 0.0217; //0.0217;
 		isCMHEenabled		= 0;
 		nOfAgents			= _NOFAGENTS;
 		bfSize              = _BFSIZE;
@@ -326,6 +332,7 @@ namespace DRONE {
 		K 					<<  1.74199, 0.94016, 1.54413, 0.89628, 3.34885, 3.29467, 6.51209, 3.92187;
 		Rotation 			= Rotation.Identity();
 
+
 		bufMaxSize = _BUFMAXSIZE;
 
 		loadTopics(n);
@@ -333,6 +340,12 @@ namespace DRONE {
 
 		//Update Model
 		updateModel();
+
+		//Mount zero class
+		paramZero.sigmat = 0.02;
+		paramZero.t1 	 = 0.0;
+		paramZero.tn 	 = 0.0;
+		paramZero.tnbar	 = 0.0;
 
 		//EKF Parameters
 		F = F.Identity();
@@ -345,16 +358,10 @@ namespace DRONE {
 			RotGlobal[i] << RotGlobal[i].Identity();
 			pose0[i]  << pose0[i].Zero();
 			yaw0[i] = 0.0;
+			genParam[i] = paramZero;
 		}
 
 		setZeroAllBuffers();
-
-		cout << "Index = " << rcvMsg.index <<  endl;
-		cout << "Tempo = " << rcvMsg.tsSensor <<  endl;
-		cout << "SOMA = " << rcvArray.sum() << endl;
-
-
-
 	}	
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -440,7 +447,9 @@ namespace DRONE {
 						0,            0,    0,   K(6);
 
 		//Ajeitar carregamento de A,B
-		A << Ac*Rotation.transpose(), MatrixXd::Zero(4,4),
+		K2 = Ac*Rotation.transpose();
+
+		A << K2, MatrixXd::Zero(4,4),
 			 MatrixXd::Identity(4,4), MatrixXd::Zero(4,4);
 		B << Bc,
 			 MatrixXd::Zero(4,4);
@@ -688,11 +697,93 @@ namespace DRONE {
 			S << Hk*P[agent]*Hk.transpose() + R;
 			K << P[agent]*Hk.transpose()*S.inverse();
 			s = s + K*y;
-			isSinsideTrapezoid(s,sOld,agent);
+			s = isSinsideTrapezoid(s,sOld,agent);
 			P[agent] = (MatrixXd::Identity(2,2) - K*Hk)*P[agent];
 		}
 		estParam.block<2,1>(0,agent) << s; 
 	}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: updateEKF
+	*	  Created by: jrsbenevides
+	*  Last Modified: 
+	*
+	*  	 Description: Performs the prediction and update steps on the EKF estimator
+	*	 Status: Debugged on March 25th
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
+
+	void Estimator::updateEKF_identGlobal(const int agent){
+		
+		Vector2d sOld,s;
+		Vector8d q,x,h,zk,y;
+		VectorQuat uPre,uPost;
+		double tBar,t1bar,t2bar,t1, deltaT, dPdAlpha, dPdBeta, dDeltaT1dAlpha, dDeltaT1dBeta, dDeltaT2dAlpha, dDeltaT2dBeta;
+		Matrix8d Ak;
+		Matrix8x4 Bk;
+		Matrix2x3 HDerivMask;
+		Matrix8x3 HMtxMask;
+		Matrix8x2 Hk,Hnew;
+		Matrix2x8 K;
+
+		
+		s << estParam.block<2,1>(0,agent);
+		cout << "ESTIM era " << s.transpose() << endl;
+		for(int k =0 ; k<(bfSize-1); k++){
+			// Keeps old estimation temporarily
+			sOld << s;
+
+			// Building Variable Elements
+			q << bfStruct[agent][k][0].data;
+			tBar = bfStruct[agent][k][0].tGSendCont;
+			deltaT = (tBar - (s(0)*bfStruct[agent][k][0].tsSensor + s(1)))/stepT;
+			Ak = A;
+			Bk = B;
+			x << q;
+			uPre = bfStruct[agent][k][0].upre;
+			for(int j = 0;j<stepT;j++){
+				x = (MatrixXd::Identity(8,8) + deltaT*Ak)*x + deltaT*Bk*uPre;
+			}
+
+			// Dynamics update - PART 2 - From arrival to next sampling- Using uComp
+			deltaT = (s(0)*bfStruct[agent][k+1][0].tsSensor + s(1) - tBar)/stepT;
+			uPost = bfStruct[agent][k][0].upost;
+			for(int j = 0;j<stepT;j++){
+				x = (MatrixXd::Identity(8,8) + deltaT*Ak)*x + deltaT*Bk*uPost;
+			}
+			h << x;
+			zk << bfStruct[agent][k+1][0].data;
+			// Hk parts: dh/d(alpha) = 
+			t1bar = bfStruct[agent][k][0].tsSensor;
+			t2bar = bfStruct[agent][k+1][0].tsSensor;
+			t1    = bfStruct[agent][k][0].tGSendCont;
+			// dP/d(alpha) = AQUI TEM ESPAÇO PRA OTIMIZAR CODIGO!!
+			dPdAlpha = (t1 - s(1))*(t1bar + t2bar) - 2*s(0)*(t1bar*t2bar);
+			dPdBeta  = 2*(t1 - s(1))-s(0)*(t1bar + t2bar); 
+
+			dDeltaT1dAlpha = -t1bar;
+			dDeltaT1dBeta  = -1;
+			dDeltaT2dAlpha = t2bar;
+			dDeltaT2dBeta  = 1;
+			HDerivMask << dPdAlpha, dDeltaT1dAlpha, dDeltaT2dAlpha,
+						  dPdBeta,  dDeltaT1dBeta,  dDeltaT2dBeta;
+			HMtxMask   << (A*A*q + A*B*uPre), (A*q+B*uPre), (A*q+B*uPost);
+			Hnew = Hnew.Zero();
+			Hnew.block<8,1>(0,0) = (t2bar - t1bar)*A*q;
+			Hk = HMtxMask*HDerivMask.transpose() + Hnew;						  
+				
+			//Kalman Steps
+			P[agent] = F*P[agent]*F.transpose() + Q;
+			y = zk - h;
+			S << Hk*P[agent]*Hk.transpose() + R;
+			K << P[agent]*Hk.transpose()*S.inverse();
+			s << s + K*y;
+			s = isSinsideTrapezoid(s,sOld,agent);
+			P[agent] = (MatrixXd::Identity(2,2) - K*Hk)*P[agent];
+		}
+		estParam.block<2,1>(0,agent) << s; 
+		cout << "ESTIM agora eh " << s.transpose() << endl;
+	}	
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: isSinsideTrapezoid
@@ -703,25 +794,22 @@ namespace DRONE {
 	*/		   
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
 
-	void Estimator::isSinsideTrapezoid(Vector2d& s, const Vector2d& sOld, int agent){
+	Vector2d Estimator::isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, int agent){
 
 		double alpha, beta;
-		// Vector2d sNew;
+		Vector2d sNew;
 
 		alpha = s(0);
 		beta  = s(1);
 
-		// sNew = sOld;
+		sNew = sOld;
 
 		if((alpha >= 1 - genParam[agent].sigmat) && (alpha <= 1 + genParam[agent].sigmat)){ // 		%Alpha lies inside boundaries for alpha
 			if((beta >= -alpha*genParam[agent].t1) && (beta <= genParam[agent].tn - alpha*genParam[agent].tnbar)){ //Beta lies inside boundaries for beta
-				s = s;
-			} else {
-				s = sOld;
-			}
-		} else {
-			s = sOld;
+				sNew = s;
+			} 
 		}
+		return sNew;
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -765,13 +853,14 @@ namespace DRONE {
 					cout  << "Sucesso: Agente: " << agent << " e novo tamanho preenchido: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
 					if(bfStruct[agent][0][0].index >= bfSize){ //Buffer is ready to estimate
 						if(bfStruct[agent][0][0].index == bfSize){ //%Initial guess for estimate
-							if(getReuseEstimate()==false){  //Initial guess will be skipped if there was already a prior estimation
-								estParam.block<2,1>(0,agent) << 1,
+							if(true){  //Initial guess will be skipped if there was already a prior estimation (was getReuseEstimate()==false)
+								estParam.block<2,1>(0,agent) << 1.0,
 																0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
 								genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
 								genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
 								genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
-								genParam[agent].sigmat = 0.5;	
+								genParam[agent].sigmat = 0.02;	
+								cout << "PRIMEIRISSIMO ESTIMADO!!: " <<  estParam.block<2,1>(0,agent) << endl;
 							}
 						}
 						updateEKF(agent);
@@ -796,13 +885,171 @@ namespace DRONE {
 
 				// cout << "Entrei aqui!" << endl;    
 							
-				if(bfStruct[agent][0][0].index > bfSize){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
+				if(bfStruct[agent][0][0].index > 10*bfSize){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
 					sEst << estParam.block<2,1>(0,agent);
+
+					cout << "Estimativa alpha, beta = " << sEst.transpose() << endl;
 					
 					tBar = (1/sEst(0))*tGlobalSendCont - (sEst(1)/sEst(0));
 					deltaT = (tBar - bfStruct[agent][bfSize-1][0].tsSensor)/stepT;
 					Ak   = sEst(0)*A;
 					Bk   = sEst(0)*B;
+					x    = bfStruct[agent][bfSize-1][0].data;
+					uPre = bfStruct[agent][bfSize-1][0].upre;
+
+					for(int j = 0; j<stepT; j++){
+						x = (MatrixXd::Identity(8,8)+deltaT*Ak)*x + deltaT*Bk*uPre;
+					}
+				} else{
+					x     = bfStruct[agent][bfSize-1][0].data;
+					// uComp = bfStruct[agent][bfSize-1][0].upre;
+				}	
+
+				// Make it available for the controller
+				setEstimatePose(x,agent);
+							
+			} else{
+				//AGUARDANDO CHEGADA DE MENSAGEM OU FINALIZACAO DE CALCULO.
+				// cout << "Buffer temporario já está vazio ou aguardando liberacao" << endl;
+
+				if(rcvArrayBuffer.maxCoeff() > _EMPTY){ // There is something inside pending buffer!!
+					// if(tGlobalSendCont - ros::Time::now().toSec() > availableTime){ //Is it worth treating now or not? based on available time (about to send?)
+					flagExitSearch = false;
+					
+					cout << "Hora de recuperar a info de buffer pendente" << endl;
+
+					for(int i=0;(i<nOfAgents)&&(!flagExitSearch);i++){
+						tambuf = rcvArrayBuffer(i); //Amount of stored packages for a determined agent
+						if(tambuf>0){
+							if(rcvArray(i) == _EMPTY){
+								cout << "Recuperando do agente " << i << " no idx " << tambuf -1 << endl;
+								bfTemp[i] = bfTempPending[i][tambuf-1]; //tambuf-1 corresponds to the index of where that last information was stored
+								rcvArray(i)= _RECEIVED;
+								rcvArrayBuffer(i)--;
+								flagExitSearch = true;
+								cout << "Info de buffer pendente para o agente " << i << " esvaziada." << endl;
+							}
+						}
+					}
+					if(flagExitSearch == false){
+						cout << "Buffer principal ainda esperando ser esvaziado para adicionar qualquer coisa" << endl;
+					}
+					// }
+				}
+				cout << "Buffer Chegada = " << rcvArray.transpose() << endl;
+				cout << "Buffer Pendente = " << rcvArrayBuffer.transpose() << endl;
+			}
+		}
+		
+		// if(rcvArray.minCoeff() == _DONE){ //DEBUG....................... _DONE
+		//if(rcvArray.minCoeff() == _ESTIMATED){
+		
+		// Checks if it is ready to go timewise and based on starting condition
+		if(flagTickStart == true){ //It means that tGlobalSendCont SHOULD have a meaningful computing value
+			if(tGlobalSendCont - ros::Time::now().toSec() <= updateRate*coeffUpdRate){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
+				if(flagSentToken == false){
+					setFlagReadyToSend(true);
+				} else {
+					setFlagReadyToSend(false);
+				}
+				
+			} 
+			else {
+				if(tGlobalSendCont - ros::Time::now().toSec() < updateRate){
+					setFlagReadyToSend(false);
+					flagSentToken = false;
+				}
+			}
+		}
+		//}		
+	}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: ComputeEstimation
+	*	  Created by: jrsbenevides
+	*  Last Modified: 
+	*
+	*  	 Description: EKF Estimator for Networked Control System
+	*		   Steps: 	DEVO COLOCAR AQUI UNS CONDICIONAIS PRA SABER SE AS MENSAGENS JÁ CHEGARAM E SE JA PODE PROCESSAR, SENAO SO BYPASSA*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
+
+	void Estimator::ComputeEstimation_identGlobal(void){
+		
+		// Declare and start local variables
+		bool status = false, flagExitSearch;
+		int agent = 0,tambuf;
+		double tBar, deltaT, tGlobalSendCont,tempValue;
+		
+		Vector2d sEst;
+		VectorQuat uComp, uPre;
+		Vector8d x;
+		
+		Matrix8d Ak;
+		Matrix8x4 Bk;
+
+		tGlobalSendCont = getThisTimeSend(); 
+
+		if(rcvArray.maxCoeff() > _EMPTY){
+
+			agent = nextAgentToCompute(); // Checks which agent should be handled next. -1 if waiting for computation. 
+			
+			if(agent>=0){
+				
+				bfTemp[agent].tGSendCont = tGlobalSendCont; //APRIMORAR AS CONDIÇÕES PARA ESSA DETERMINAÇÃO (msg adiantada, atrasada, etc...)
+				
+				cout  << "Tratando: Agente: " << agent << " e pkt: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
+
+				status = AddPkt2Buffer(bfTemp[agent],agent);
+			
+				if(status == true){ // 		If buffer received this new info:
+					cout  << "Sucesso: Agente: " << agent << " e novo tamanho preenchido: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
+					if(bfStruct[agent][0][0].index >= bfSize){ //Buffer is ready to estimate
+						if(bfStruct[agent][0][0].index == bfSize){ //%Initial guess for estimate
+							if(true){  //Initial guess will be skipped if there was already a prior estimation (was getReuseEstimate()==false)
+
+								estParam.block<2,1>(0,agent) << 1.0,
+																0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
+								genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
+								genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
+								genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
+								genParam[agent].sigmat = 0.02;	
+								cout << "PRIMEIRISSIMO ESTIMADO!!: " <<  estParam.block<2,1>(0,agent) << endl;
+							}else{
+								cout << "EU IGNOREI O PRIMEIRO LOOP DE INICIALIZACAO" << endl;
+							}
+						}
+						updateEKF_identGlobal(agent);
+					}
+					// else if(bfStruct[agent][0][0].index == 1){
+					// 	bfStruct[agent][bfSize-1][0].upre << 0.0, 0.0, 0.0, 0.0;
+					// }
+					cout <<  "Montado o pacote " << bfStruct[agent][0][0].index <<  " do agente " << agent <<  endl;
+				} else {
+					//CASO NAO CONSIGA ADICIONAR AO PACOTE
+					cout << "Pacote eh velho demais...esperar liberar o envio pra mandar de novo" << endl;
+				}
+
+				rcvArray(agent) = _ESTIMATED; // 7 == finished
+
+				// 	% ####################################################
+				// 	% ###########   STEP 1.3 Prediction Step  ############
+				// 	% ####################################################
+					
+				// 	%Based on current estimate for s = [alpha,beta] for each agent, we
+				// 	%predict the current state based on the last received sampled data  
+
+				// cout << "Entrei aqui!" << endl;    
+							
+				if(bfStruct[agent][0][0].index > 20*bfSize){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
+					sEst << estParam.block<2,1>(0,agent);
+
+					cout << "Estimativa alpha, beta = " << sEst.transpose() << endl;
+					
+					tBar = tGlobalSendCont;
+					deltaT = (tBar - (sEst(0)*bfStruct[agent][bfSize-1][0].tsSensor + sEst(1)))/stepT;
+					Ak   = A;
+					Bk   = B;
 					x    = bfStruct[agent][bfSize-1][0].data;
 					uPre = bfStruct[agent][bfSize-1][0].upre;
 

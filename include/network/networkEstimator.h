@@ -85,7 +85,7 @@ namespace DRONE {
 		Matrix8d A,R,S;
 		Matrix8x4 B;
 
-		Matrix4d Rotation;
+		Matrix4d Rotation,K2;
 
 		Matrix2d F,Q, P[_NOFAGENTS];  // 5 = nOfAgents
 
@@ -122,20 +122,22 @@ namespace DRONE {
 		Estimator();
 		~Estimator();
 		
-		void 	initEstimator(void);
-		void 	ComputeEstimation(void);
-		void 	joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
-		void 	odomRcvCallback(const nav_msgs::Odometry::ConstPtr& odomRaw);
-		void 	loadTopics(ros::NodeHandle &n);
-		void 	loadSettings(ros::NodeHandle &n);
-		bool 	AddPkt2Buffer(const Buffer& pkt, const int agent);
-		void 	UpdateBuffer(const Buffer& pkt, const int agent,const int i);
-		void 	updateEKF(const int agent);
-		int 	nextAgentToCompute(void);
-		int 	nextAgentToSend(void);
-		void 	updateModel(void);
-		void 	isSinsideTrapezoid(Vector2d& s, const Vector2d& sOld, int agent);
-		void 	PresentDebug(void);
+		void 		initEstimator(void);
+		void 		ComputeEstimation(void);
+		void 		ComputeEstimation_identGlobal(void);
+		void 		joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
+		void 		odomRcvCallback(const nav_msgs::Odometry::ConstPtr& odomRaw);
+		void 		loadTopics(ros::NodeHandle &n);
+		void 		loadSettings(ros::NodeHandle &n);
+		bool 		AddPkt2Buffer(const Buffer& pkt, const int agent);
+		void 		UpdateBuffer(const Buffer& pkt, const int agent,const int i);
+		void 		updateEKF(const int agent);
+		void 		updateEKF_identGlobal(const int agent);
+		int 		nextAgentToCompute(void);
+		int 		nextAgentToSend(void);
+		void 		updateModel(void);
+		Vector2d 	isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, int agent);
+		void 		PresentDebug(void);
 		
 		void 		setK(const Vector8d& Kvalue);
 		void 		setBuffer(const Buffer& msg);
@@ -168,6 +170,8 @@ namespace DRONE {
 		bool 		getIsFlagEnable(void);
 		bool 		getReuseEstimate(void);
 		bool 		getIsOdomStarted(const int& agent);
+		Matrix4d 	getK2(void);
+		double 		getUpdateRate(void);
 		
 	};
 } // namespace DRONE
