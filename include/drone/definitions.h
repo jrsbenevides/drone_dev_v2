@@ -57,7 +57,10 @@ namespace DRONE {
 	typedef Matrix<double, 1,   sizeEKF> 	 	 Vector1x32;
 
 	typedef Matrix<double, size2d,	  size8d> 	 Matrix2x8;
+	typedef Matrix<double, size2d,    sizeQuat>  Matrix2x4;
 	typedef Matrix<double, sizeQuat,  sizeQuat>  Matrix4d;
+	typedef Matrix<double, sizeQuat,  size2d>  	 Matrix4x2;
+	typedef Matrix<double, sizeQuat,  size3axes> Matrix4x3;
 	typedef Matrix<double, sizeQuat,  size8d>  	 Matrix4x8;
 	typedef Matrix<double, size2d,    size3axes> Matrix2x3;
 	typedef Matrix<double, size2d,    sizeFive>  Matrix2x5;

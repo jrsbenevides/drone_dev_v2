@@ -663,7 +663,6 @@ namespace DRONE {
 	*	 Status: Debugged on March 25th
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
-
 	void Estimator::updateEKF(const int agent){
 		
 		Vector2d sOld,s;
@@ -676,7 +675,6 @@ namespace DRONE {
 		Matrix8x3 HMtxMask;
 		Matrix8x2 Hk;
 		Matrix2x8 K;
-
 		
 		s << estParam.block<2,1>(0,agent);
 		for(int k =0 ; k<(bfSize-1); k++){
@@ -728,6 +726,94 @@ namespace DRONE {
 			s = s + K*y;
 			s = isSinsideTrapezoid(s,sOld,agent,k);
 			P[agent] = (MatrixXd::Identity(2,2) - K*Hk)*P[agent];
+		}
+		estParam.block<2,1>(0,agent) << s; 
+	}
+
+	void Estimator::updateEKF_2D(const int agent){
+		
+		Vector2d sOld,s,uPre2d,uPost2d;
+		VectorQuat h2d,zk2d,y2d,q2d;
+		Vector8d q,x,h,zk,y;
+		VectorQuat uPre,uPost;
+		double tBar,t1bar,t2bar,t1, deltaT, dPdAlpha, dPdBeta, dDeltaT1dAlpha, dDeltaT1dBeta, dDeltaT2dAlpha, dDeltaT2dBeta;
+		Matrix8d Ak;
+		Matrix8x4 Bk;
+		Matrix2x3 HDerivMask;
+		Matrix4x3 HMtxMask;
+		Matrix2x8 K;
+		Matrix4d  R2d,S2d,A2d;
+		Matrix4x2 Hk2d,B2d;
+		Matrix2x4 K2d;
+
+		A2d << 	A.block<2,2>(0,0),A.block<2,2>(0,4),
+				A.block<2,2>(4,0),A.block<2,2>(4,4);  //Block of size (p,q), starting at (i,j) 	matrix.block<p,q>(i,j);
+
+		B2d << 	B.block<2,2>(0,0),
+				B.block<2,2>(4,0);
+		
+		R2d = R2d.Identity();
+
+		s << estParam.block<2,1>(0,agent);
+		for(int k =0 ; k<(bfSize-1); k++){
+			// Keeps old estimation temporarily
+			sOld << s;
+
+			// Building Variable Elements
+			q << bfStruct[agent][k][0].data;
+			q2d 	<< 	q.head(2),
+						q.segment(4,2); 
+			tBar = (1/s(0))*bfStruct[agent][k][0].tGSendCont - (s(1)/s(0));
+			deltaT = (tBar - bfStruct[agent][k][0].tsSensor)/stepT;
+			Ak = s(0)*A;
+			Bk = s(0)*B;
+			x << q;
+			uPre = bfStruct[agent][k][0].upre;
+			uPre2d << uPre.head(2);
+			for(int j = 0;j<stepT;j++){
+				x = (MatrixXd::Identity(8,8) + deltaT*Ak)*x + deltaT*Bk*uPre;
+			}
+
+			// Dynamics update - PART 2 - From arrival to next sampling- Using uComp
+			deltaT = (bfStruct[agent][k+1][0].tsSensor - tBar)/stepT;
+			uPost = bfStruct[agent][k][0].upost;
+			uPost2d << uPost.head(2);
+			for(int j = 0;j<stepT;j++){
+				x = (MatrixXd::Identity(8,8) + deltaT*Ak)*x + deltaT*Bk*uPost;
+			}
+			h << x;
+			zk << bfStruct[agent][k+1][0].data;
+
+			h2d 	<< 	h.head(2),
+						h.segment(4,2); //vector.segment(i,n) == Block containing n elements, starting at position i
+			zk2d 	<< 	zk.head(2),
+						zk.segment(4,2);
+			// Hk parts: dh/d(alpha) = 
+			t1bar = bfStruct[agent][k][0].tsSensor;
+			t2bar = bfStruct[agent][k+1][0].tsSensor;
+			t1    = bfStruct[agent][k][0].tGSendCont;
+			// dP/d(alpha) = AQUI TEM ESPAÇO PRA OTIMIZAR CODIGO!!
+			dPdAlpha = (t1 - s(1))*(t1bar + t2bar) - 2*s(0)*(t1bar*t2bar);
+			dPdBeta  = 2*(t1 - s(1))-s(0)*(t1bar + t2bar); 
+
+			dDeltaT1dAlpha = -t1bar;
+			dDeltaT1dBeta  = -1;
+			dDeltaT2dAlpha = t2bar;
+			dDeltaT2dBeta  = 1;
+			HDerivMask << dPdAlpha, dDeltaT1dAlpha, dDeltaT2dAlpha,
+						  dPdBeta,  dDeltaT1dBeta,  dDeltaT2dBeta;
+			HMtxMask   << (A2d*A2d*q2d + A2d*B2d*uPre2d), (A2d*q2d+B2d*uPre2d), (A2d*q2d+B2d*uPost2d);
+			Hk2d = HMtxMask*HDerivMask.transpose();						  
+				
+			// //Kalman Steps
+			P[agent] = F*P[agent]*F.transpose() + Q;
+			y2d = zk2d - h2d;
+			S2d << Hk2d*P[agent]*Hk2d.transpose() + R2d;
+
+			K2d << P[agent]*Hk2d.transpose()*S2d.inverse();
+			s = s + K2d*y2d;
+			s = isSinsideTrapezoid(s,sOld,agent,k);
+			P[agent] = (MatrixXd::Identity(2,2) - K2d*Hk2d)*P[agent];
 		}
 		estParam.block<2,1>(0,agent) << s; 
 	}

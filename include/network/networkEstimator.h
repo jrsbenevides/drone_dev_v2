@@ -137,6 +137,7 @@ namespace DRONE {
 		void 		UpdateBuffer(const Buffer& pkt, const int agent,const int i);
 		void 		updateEKF(const int agent);
 		void 		updateEKF_identGlobal(const int agent);
+		void 		updateEKF_2D(const int agent);
 		int 		nextAgentToCompute(void);
 		int 		nextAgentToSend(void);
 		void 		updateModel(void);
