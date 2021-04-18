@@ -281,6 +281,31 @@ namespace DRONE {
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 	
+	void Estimator::pubMyLog(void){
+
+		drone_dev::BufferType bff;
+
+		if(bfStruct[0][0][0].index >= thrCompEstimation){
+			for(int i = 0;i<bfSize;i++){
+				bff.index 		= bfStruct[0][i][0].index;
+				bff.tsSensor 	= bfStruct[0][i][0].tsSensor;
+				bff.tsArrival 	= bfStruct[0][i][0].tsArrival;
+				bff.tGSendCont 	= bfStruct[0][i][0].tGSendCont;
+				for(int k = 0;k<8;k++){
+					bff.data[k] 	= bfStruct[0][i][0].data(k);
+					if(k<4){
+						bff.upre[k] 	= bfStruct[0][i][0].upre(k);
+						bff.upost[k] 	= bfStruct[0][i][0].upost(k);
+					}
+				}
+				log_publisher.publish(bff);
+			}
+		}
+
+		
+
+	}
+
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: initEstimator
 	*	  Created by: jrsbenevides
@@ -325,6 +350,7 @@ namespace DRONE {
 		isCMHEenabled		= 0;
 		nOfAgents			= _NOFAGENTS;
 		bfSize              = _BFSIZE;
+		thrCompEstimation 	= 5*bfSize;
 		PI 					= 3.141592653589793;
    		t 			  		= 0.0;
 		stepT				= 1; //number of steps in integration
@@ -342,10 +368,12 @@ namespace DRONE {
 		updateModel();
 
 		//Mount zero class
-		paramZero.sigmat = 0.02;
+		paramZero.sigmat = 0.01;
 		paramZero.t1 	 = 0.0;
 		paramZero.tn 	 = 0.0;
 		paramZero.tnbar	 = 0.0;
+
+		
 
 		//EKF Parameters
 		F = F.Identity();
@@ -376,6 +404,7 @@ namespace DRONE {
 		void Estimator::loadTopics(ros::NodeHandle &n) {
 
 		joy_subscriber 	   	  = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &Estimator::joyCallback, this);
+		log_publisher	 	  = n.advertise<drone_dev::BufferType>("log_debug",1);
 		odomRcv_subscriber    = n.subscribe<nav_msgs::Odometry>("/odom_global", _NOFAGENTS, &Estimator::odomRcvCallback, this);
 	}
 
@@ -697,7 +726,7 @@ namespace DRONE {
 			S << Hk*P[agent]*Hk.transpose() + R;
 			K << P[agent]*Hk.transpose()*S.inverse();
 			s = s + K*y;
-			s = isSinsideTrapezoid(s,sOld,agent);
+			s = isSinsideTrapezoid(s,sOld,agent,k);
 			P[agent] = (MatrixXd::Identity(2,2) - K*Hk)*P[agent];
 		}
 		estParam.block<2,1>(0,agent) << s; 
@@ -778,7 +807,7 @@ namespace DRONE {
 			S << Hk*P[agent]*Hk.transpose() + R;
 			K << P[agent]*Hk.transpose()*S.inverse();
 			s << s + K*y;
-			s = isSinsideTrapezoid(s,sOld,agent);
+			s = isSinsideTrapezoid(s,sOld,agent,k);
 			P[agent] = (MatrixXd::Identity(2,2) - K*Hk)*P[agent];
 		}
 		estParam.block<2,1>(0,agent) << s; 
@@ -794,7 +823,7 @@ namespace DRONE {
 	*/		   
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
 
-	Vector2d Estimator::isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, int agent){
+	Vector2d Estimator::isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, const int& agent, const int& iter){
 
 		double alpha, beta;
 		Vector2d sNew;
@@ -804,11 +833,16 @@ namespace DRONE {
 
 		sNew = sOld;
 
+		// if((alpha >= 1 - genParam[agent].sigmat) && (alpha <= 1 + genParam[agent].sigmat)){ // 		%Alpha lies inside boundaries for alpha
+		// 	if((beta >= -alpha*genParam[agent].t1) && (beta <= genParam[agent].tn - alpha*genParam[agent].tnbar)){ //Beta lies inside boundaries for beta
+		// 		sNew = s;
+		// 	} 
+		// }
 		if((alpha >= 1 - genParam[agent].sigmat) && (alpha <= 1 + genParam[agent].sigmat)){ // 		%Alpha lies inside boundaries for alpha
-			if((beta >= -alpha*genParam[agent].t1) && (beta <= genParam[agent].tn - alpha*genParam[agent].tnbar)){ //Beta lies inside boundaries for beta
+			if((beta > bfStruct[agent][iter][0].tsArrival-alpha*bfStruct[agent][iter+1][0].tsSensor) && (beta < bfStruct[agent][iter][0].tsArrival-alpha*bfStruct[agent][iter][0].tsSensor)){ //Beta lies inside boundaries for beta
 				sNew = s;
 			} 
-		}
+		}		
 		return sNew;
 	}
 
@@ -826,7 +860,7 @@ namespace DRONE {
 		// Declare and start local variables
 		bool status = false, flagExitSearch;
 		int agent = 0,tambuf;
-		double tBar, deltaT, tGlobalSendCont,tempValue;
+		double tBar, deltaT, tGlobalSendCont,tempValue,minVal,maxVal;
 		
 		Vector2d sEst;
 		VectorQuat uComp, uPre;
@@ -851,11 +885,28 @@ namespace DRONE {
 			
 				if(status == true){ // 		If buffer received this new info:
 					cout  << "Sucesso: Agente: " << agent << " e novo tamanho preenchido: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
-					if(bfStruct[agent][0][0].index >= bfSize){ //Buffer is ready to estimate
-						if(bfStruct[agent][0][0].index == bfSize){ //%Initial guess for estimate
+					if(bfStruct[agent][0][0].index >= thrCompEstimation){ //Buffer is ready to estimate
+						if(bfStruct[agent][0][0].index == thrCompEstimation){ //%Initial guess for estimate
 							if(true){  //Initial guess will be skipped if there was already a prior estimation (was getReuseEstimate()==false)
+								
+								for(int i=0;i<bfSize-1;i++){
+									if(i==0){
+										minVal = bfStruct[agent][i][0].tsArrival-bfStruct[agent][i][0].tsSensor;
+										maxVal = bfStruct[agent][i][0].tsArrival-bfStruct[agent][i+1][0].tsSensor;
+									} else{
+										if(bfStruct[agent][i][0].tsArrival-bfStruct[agent][i][0].tsSensor < minVal){
+											minVal = bfStruct[agent][i][0].tsArrival-bfStruct[agent][i][0].tsSensor;
+										}
+										if(bfStruct[agent][i][0].tsArrival-bfStruct[agent][i+1][0].tsSensor > maxVal){
+											maxVal = bfStruct[agent][i][0].tsArrival-bfStruct[agent][i+1][0].tsSensor;
+										}
+									}
+								}
+								
+								// estParam.block<2,1>(0,agent) << 1.0,
+								// 								0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
 								estParam.block<2,1>(0,agent) << 1.0,
-																0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
+																0.5*(minVal + maxVal);
 								genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
 								genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
 								genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
@@ -885,7 +936,7 @@ namespace DRONE {
 
 				// cout << "Entrei aqui!" << endl;    
 							
-				if(bfStruct[agent][0][0].index > 10*bfSize){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
+				if(bfStruct[agent][0][0].index > thrCompEstimation){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
 					sEst << estParam.block<2,1>(0,agent);
 
 					cout << "Estimativa alpha, beta = " << sEst.transpose() << endl;

@@ -23,6 +23,7 @@
 #include "nav_msgs/Odometry.h"
 #include "sensor_msgs/Joy.h"
 #include "std_msgs/UInt8.h"
+#include <drone_dev/BufferType.h>
 #include <cmath>
 #include <sstream>
 #include <string>
@@ -62,6 +63,7 @@ namespace DRONE {
 		double 	t;
 	  
 	  public:
+	  	ros::Publisher 	log_publisher;
 		VectorBoolAgent 	isOdomStarted;
 	  	bool flagEnter, flagDebug;
 
@@ -77,6 +79,8 @@ namespace DRONE {
 		int _RECEIVED 	;
 		int _ESTIMATED	;
 		int _DONE 		;
+
+		int thrCompEstimation;
 
 	  	double stepT, nextTimeToSend, updateRate,coeffUpdRate;
 
@@ -136,8 +140,9 @@ namespace DRONE {
 		int 		nextAgentToCompute(void);
 		int 		nextAgentToSend(void);
 		void 		updateModel(void);
-		Vector2d 	isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, int agent);
+		Vector2d 	isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, const int& agent, const int& iter);
 		void 		PresentDebug(void);
+		void 		pubMyLog(void);
 		
 		void 		setK(const Vector8d& Kvalue);
 		void 		setBuffer(const Buffer& msg);

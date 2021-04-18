@@ -30,6 +30,8 @@
 #include "tf/transform_datatypes.h"
 #include <tf/transform_broadcaster.h>
 
+#include "drone_dev/Num.h"
+
 
 using namespace std;
 
@@ -40,6 +42,8 @@ namespace DRONE {
 
 	    ros::NodeHandle n;
 
+
+		ros::Publisher 	log_publisher;
 		ros::Publisher cmd_vel_publisher;
 		ros::Publisher cmd_global_publisher;
 		ros::Publisher transfPosition_publisher;
@@ -64,6 +68,7 @@ namespace DRONE {
 		~System ();
 
 		geometry_msgs::PoseArray cmdArray;
+		drone_dev::BufferType bff;
 		
 		long int count;
 		long int countEKF;

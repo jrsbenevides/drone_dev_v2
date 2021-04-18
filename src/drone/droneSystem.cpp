@@ -329,6 +329,7 @@ namespace DRONE {
 
 	void System::loadTopics(ros::NodeHandle &n) {
 		
+		log_publisher	 	  	 = n.advertise<drone_dev::Num>("log_debug",1);
 		cmd_global_publisher	 = n.advertise<geometry_msgs::PoseArray>("cmd_global",1);
 		joy_subscriber 			 = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &System::joyCallback, this);
 		
@@ -583,6 +584,8 @@ namespace DRONE {
 		int agent;
 		VectorQuat input;
 		Vector12x1 vecDesired;
+		double tTempo;
+
 		if((drone.getIsFlagEnable())){
 				
 			if(flagMonitorSelect == false){ //Detects rising edge
@@ -624,6 +627,9 @@ namespace DRONE {
 					cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
 					cout << "###############################\n" << endl;
 					cmd_global_publisher.publish(cmdArray);
+					tTempo = ros::Time::now().toSec();
+					network.pubMyLog();
+					cout << "Levei " << ros::Time::now().toSec() - tTempo << " s para mandar essas mensagens" << endl;
 					network.setFlagComputeControl(true);
 					network.setRcvArrayZero(); 				//Resets array for receiving new messages
 					network.setToken(true);					//Indicates to the network package that message has been sent already
