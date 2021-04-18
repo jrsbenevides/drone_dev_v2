@@ -143,7 +143,7 @@ namespace DRONE {
 		void 		updateModel(void);
 		Vector2d 	isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, const int& agent, const int& iter);
 		void 		PresentDebug(void);
-		void 		pubMyLog(void);
+		void 		pubMyLog(const int& valStart);
 		
 		void 		setK(const Vector8d& Kvalue);
 		void 		setBuffer(const Buffer& msg);

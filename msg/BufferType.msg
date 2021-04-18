@@ -5,3 +5,5 @@ float64 tGSendCont
 float64[8] data
 float64[4] upre
 float64[4] upost
+float64 alpha
+float64 beta

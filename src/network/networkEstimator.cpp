@@ -281,16 +281,18 @@ namespace DRONE {
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 	
-	void Estimator::pubMyLog(void){
+	void Estimator::pubMyLog(const int& valStart){ //If valStart
 
 		drone_dev::BufferType bff;
-
+		
 		if(bfStruct[0][0][0].index >= thrCompEstimation){
-			for(int i = 0;i<bfSize;i++){
+			for(int i = valStart;i<bfSize;i++){
 				bff.index 		= bfStruct[0][i][0].index;
 				bff.tsSensor 	= bfStruct[0][i][0].tsSensor;
 				bff.tsArrival 	= bfStruct[0][i][0].tsArrival;
 				bff.tGSendCont 	= bfStruct[0][i][0].tGSendCont;
+				bff.alpha		= estParam(0);
+				bff.beta		= estParam(1);
 				for(int k = 0;k<8;k++){
 					bff.data[k] 	= bfStruct[0][i][0].data(k);
 					if(k<4){
