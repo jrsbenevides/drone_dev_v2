@@ -164,6 +164,7 @@ namespace DRONE {
 		void 		setPoseZero(const VectorQuat& poseValue, const int& agent);
 		void 		setPosition(Vector3axes& position, const int& agent);
 		double 		setOrientation (const VectorQuat& orientationValue, const int& agent);
+		void 		setOrientation(const VectorQuat& orientationValue, double& yaw, const int& agent, VectorQuat& velocity);
 
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);

@@ -628,7 +628,7 @@ namespace DRONE {
 					cout << "###############################\n" << endl;
 					cmd_global_publisher.publish(cmdArray);
 					tTempo = ros::Time::now().toSec();
-					network.pubMyLog(0); //If we want it to only pub the last message (as in identification, replace param to bfSize-1)
+					network.pubMyLog(0); //If we want it to only pub the last message (as in identification, replace param 0 to bfSize-1)
 					cout << "Levei " << ros::Time::now().toSec() - tTempo << " s para mandar essas mensagens" << endl;
 					network.setFlagComputeControl(true);
 					network.setRcvArrayZero(); 				//Resets array for receiving new messages

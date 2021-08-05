@@ -150,17 +150,26 @@ namespace DRONE {
 		position 		= RotGlobal[agent].transpose()*(position - pose0[agent].head(3));
 	}	
 
-	double Estimator::setOrientation(const VectorQuat& orientationValue, const int& agent){
-		
+	void Estimator::setOrientation(const VectorQuat& orientationValue, double& yaw, const int& agent, VectorQuat& velocity){
+	
 		Vector3axes rpy;
 				
 		VectorQuat orientationRaw;
+
+		Matrix4d Rot;
+
+		Rot = Rot.Identity();
 
 		orientationRaw = orientationValue;
 
 	    Conversion::quat2angleZYX(rpy,orientationRaw);
 
-	    return angles::normalize_angle(rpy(2)-yaw0[agent]);
+	    yaw = angles::normalize_angle(rpy(2)-yaw0[agent]);
+		
+		Rot.block<2,2>(0,0) << 	cos(yaw), -sin(yaw),
+								sin(yaw),  cos(yaw);		
+
+		velocity = Rot*velocity;
 	}	
 
 	Matrix4d Estimator::getK2(void){
@@ -302,10 +311,7 @@ namespace DRONE {
 				}
 				log_publisher.publish(bff);
 			}
-		}
-
-		
-
+		}		
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1085,7 +1091,7 @@ namespace DRONE {
 		
 		// Checks if it is ready to go timewise and based on starting condition
 		if(flagTickStart == true){ //It means that tGlobalSendCont SHOULD have a meaningful computing value
-			if(tGlobalSendCont - ros::Time::now().toSec() <= updateRate*coeffUpdRate){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
+			if(tGlobalSendCont - ros::Time::now().toSec() <= updateRate*coeffUpdRate){ //Computation time,send, receiving and implementing = updateRate*0.1 = user defined
 				if(flagSentToken == false){
 					setFlagReadyToSend(true);
 				} else {
@@ -1308,7 +1314,7 @@ namespace DRONE {
 			string agent;
 			int nAgent;
 			Buffer incomingMsg;
-			VectorQuat poseRcv,orientation;
+			VectorQuat poseRcv,orientation,velocity;
 			Vector3axes rpy,positionNow;
 			double yawOdom,yawThisFrame;
 
@@ -1348,11 +1354,18 @@ namespace DRONE {
 				orientation 	<< 	odomRaw->pose.pose.orientation.w, 
 									odomRaw->pose.pose.orientation.x, 
 									odomRaw->pose.pose.orientation.y, 
-									odomRaw->pose.pose.orientation.z;				
+									odomRaw->pose.pose.orientation.z;	
+
+				velocity 		<< 	odomRaw->twist.twist.linear.x,
+									odomRaw->twist.twist.linear.y,
+									odomRaw->twist.twist.linear.z,
+									odomRaw->twist.twist.angular.z;													
 
 				positionNow 	<< 	odomRaw->pose.pose.position.x,
 									odomRaw->pose.pose.position.y,
 									odomRaw->pose.pose.position.z;
+
+				//When it comes from odometry, velocity is local, thus we need to transform it: dvg = Rot*dvb									
 
 				/*Reset frame location*/
 				if (!getIsOdomStarted(nAgent)) {
@@ -1365,13 +1378,11 @@ namespace DRONE {
 
 				//Based on initial pose, calculate transformed pose			
 				setPosition(positionNow,nAgent);
-				yawThisFrame = setOrientation(orientation,nAgent);
+				// yawThisFrame = setOrientation(orientation,nAgent);
+				setOrientation(orientation,yawThisFrame,nAgent,velocity);
 				
 				
-				incomingMsg.data << odomRaw->twist.twist.linear.x,
-									odomRaw->twist.twist.linear.y,
-									odomRaw->twist.twist.linear.z,
-									odomRaw->twist.twist.angular.z,
+				incomingMsg.data << velocity,
 									positionNow,
 									yawThisFrame;
 
