@@ -129,6 +129,7 @@ namespace DRONE {
 			drone.setK(drone.getKimu());
 		} else if(sensorSelectInput.compare("VICON") == 0){
 			drone.setK(drone.getKvicon());
+			network.setFlagVicon(true); //tells the network class that vicon is the current sensor
 		} else if(sensorSelectInput.compare("ORBSLAM") == 0){
 			drone.setK(drone.getKimu());
 		} else {
@@ -329,7 +330,7 @@ namespace DRONE {
 
 	void System::loadTopics(ros::NodeHandle &n) {
 		
-		log_publisher	 	  	 = n.advertise<drone_dev::Num>("log_debug",1);
+		// log_publisher	 	  	 = n.advertise<drone_dev::Num>("log_debug",1);
 		cmd_global_publisher	 = n.advertise<geometry_msgs::PoseArray>("cmd_global",1);
 		joy_subscriber 			 = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &System::joyCallback, this);
 		

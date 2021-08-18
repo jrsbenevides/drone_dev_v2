@@ -43,6 +43,7 @@ namespace DRONE {
 	    ros::Publisher  odomGlobal_publisher;
 		ros::Subscriber odomRcv_subscriber;
 	    ros::Subscriber joy_subscriber;
+		ros::Subscriber vicon_subscriber;
 
 
 	  private:
@@ -56,8 +57,11 @@ namespace DRONE {
 		bool 	flagTickStart;
 		bool 	flagEmergencyStop;
 		bool 	flagReuseEstimation;
+		bool 	flagVicon;
 
 		int 	isCMHEenabled;
+		int 	nLossMax;
+		int 	lossCount;
 
 		double 	PI;
 		double 	t;
@@ -84,10 +88,19 @@ namespace DRONE {
 
 	  	double stepT, nextTimeToSend, updateRate,coeffUpdRate;
 
+		double  dropProbability;
+
 		Vector8d K;
 
 		Matrix8d A,R,S;
 		Matrix8x4 B;
+
+		Matrix8d 	A_kalman;
+		Matrix8d 	P_kalman;
+		Matrix8d 	Q_kalman;
+		Matrix4x8	H_kalman;
+		Matrix4d 	R_kalman;
+		Vector8d	x_kalman;
 
 		Matrix4d Rotation,K2;
 
@@ -131,6 +144,7 @@ namespace DRONE {
 		void 		ComputeEstimation_identGlobal(void);
 		void 		joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
 		void 		odomRcvCallback(const nav_msgs::Odometry::ConstPtr& odomRaw);
+		void 		viconRcvCallback(const geometry_msgs::TransformStamped::ConstPtr& viconRaw);
 		void 		loadTopics(ros::NodeHandle &n);
 		void 		loadSettings(ros::NodeHandle &n);
 		bool 		AddPkt2Buffer(const Buffer& pkt, const int agent);
@@ -144,6 +158,7 @@ namespace DRONE {
 		Vector2d 	isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, const int& agent, const int& iter);
 		void 		PresentDebug(void);
 		void 		pubMyLog(const int& valStart);
+		VectorQuat DvKalman(const VectorQuat& posCurrent, const double& timeNow, const double& timePast);
 		
 		void 		setK(const Vector8d& Kvalue);
 		void 		setBuffer(const Buffer& msg);
@@ -163,8 +178,12 @@ namespace DRONE {
 		void 		ZeroIsOdomStarted(void);
 		void 		setPoseZero(const VectorQuat& poseValue, const int& agent);
 		void 		setPosition(Vector3axes& position, const int& agent);
-		double 		setOrientation (const VectorQuat& orientationValue, const int& agent);
 		void 		setOrientation(const VectorQuat& orientationValue, double& yaw, const int& agent, VectorQuat& velocity);
+		void 		setOrientationVicon(const VectorQuat& orientationValue, double& yaw, const int& agent);
+		void 		setFlagVicon(const bool& value);
+		void 		setKalmanX(const Vector8d& value);
+		void 		setKalmanP(const Matrix8d& value);
+		void 		setDropProbability(const double& value);
 
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);
@@ -179,6 +198,9 @@ namespace DRONE {
 		bool 		getIsOdomStarted(const int& agent);
 		Matrix4d 	getK2(void);
 		double 		getUpdateRate(void);
+		bool 		getFlagVicon(void);
+		Vector8d 	getKalmanX(void);
+		Matrix8d 	getKalmanP(void);
 		
 	};
 } // namespace DRONE

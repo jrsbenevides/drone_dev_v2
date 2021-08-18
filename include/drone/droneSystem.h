@@ -43,7 +43,7 @@ namespace DRONE {
 	    ros::NodeHandle n;
 
 
-		ros::Publisher 	log_publisher;
+		// ros::Publisher 	log_publisher;
 		ros::Publisher cmd_vel_publisher;
 		ros::Publisher cmd_global_publisher;
 		ros::Publisher transfPosition_publisher;

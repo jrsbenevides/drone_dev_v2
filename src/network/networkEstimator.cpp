@@ -172,14 +172,47 @@ namespace DRONE {
 		velocity = Rot*velocity;
 	}	
 
-	Matrix4d Estimator::getK2(void){
-		return K2;
+	void Estimator::setOrientationVicon(const VectorQuat& orientationValue, double& yaw, const int& agent){
+	
+		Vector3axes rpy;
+				
+		VectorQuat orientationRaw;
+
+		orientationRaw = orientationValue;
+
+	    Conversion::quat2angleZYX(rpy,orientationRaw);
+
+	    yaw = angles::normalize_angle(rpy(2)-yaw0[agent]);
+				
 	}
+
+	void Estimator::setFlagVicon(const bool& value){
+		flagVicon = value;
+	}
+
+	void Estimator::setKalmanX(const Vector8d& value) {
+		x_kalman = value;
+	}
+
+	void Estimator::setKalmanP(const Matrix8d& value) {
+		P_kalman = value;
+	}
+
+	void Estimator::setDropProbability(const double& value){
+		dropProbability = value;
+	}
+
+
+
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 	/* ########################################                 GETTERS                 ##########################################*/
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
+
+	Matrix4d Estimator::getK2(void){
+		return K2;
+	}
 
 	Estimator::Buffer Estimator::getBuffer(const int index){
 		return bfTemp[index];
@@ -222,6 +255,17 @@ namespace DRONE {
 		return updateRate;
 	}
 	
+	bool Estimator::getFlagVicon(void){
+		return flagVicon;
+	}
+
+	Vector8d Estimator::getKalmanX(void){
+		return x_kalman;
+	}
+
+	Matrix8d Estimator::getKalmanP(void){
+		return P_kalman;
+	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: getThisTimeSend
@@ -289,7 +333,60 @@ namespace DRONE {
 	/* #####################################            REGULAR FUNCTIONS                 ########################################*/
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: DvKalman
+	*	  Created by: jrsbenevides
+	*  Last Modified: March 7th 2018 
+	*
+	*  	 Description: Estimates linear velocity from Vicon position - Kalman Filter.
+	*				  1. Updates A matrix based on current sampling time;
+	* 				  2. Reads variable and error covariance estimate from previous time instant;
+	*				  3. Performs simple Kalman Filter;	
+	* 				  4. Stores variable and error covariance estimate from this time instant;		  
+	* 				  5. Returns estimated velocity.		  
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	VectorQuat Estimator::DvKalman(const VectorQuat& poseCurrent, const double& timeNow, const double& timePast){
+		
+		double dt;
+		VectorQuat estLinearVel, z;
+
+		Matrix4d 	aux;
+		Matrix8d 	P, Pp;
+		Vector8d 	x, xp;
+		Matrix8x4	K;
+
+		z = poseCurrent;
+
+		dt 		= timeNow - timePast;
+		// dt 		= 0.05;
+
+		A_kalman.block<4,4>(0,4) << dt,  0,  0,  0,
+									 0, dt,  0,  0,
+									 0,  0, dt,  0,
+									 0,  0,  0, dt;
 	
+		x = getKalmanX();
+		P = getKalmanP();
+
+		xp 	= A_kalman*x;
+		Pp 	= A_kalman*P*A_kalman.transpose()  + Q_kalman;
+		aux = H_kalman*Pp*H_kalman.transpose() + R_kalman;
+		K 	= Pp*H_kalman.transpose()*aux.inverse();
+		x 	= xp + K*(z - H_kalman*xp);
+		P 	= Pp - K*H_kalman*Pp;
+
+		setKalmanX(x);
+		setKalmanP(P);
+
+		estLinearVel 	<<  x.head(4); //vector.segment<n>(i) =  n elements starting at position i
+		
+		return estLinearVel;
+	}
+
+
 	void Estimator::pubMyLog(const int& valStart){ //If valStart
 
 		drone_dev::BufferType bff;
@@ -326,6 +423,7 @@ namespace DRONE {
 
 	void Estimator::initEstimator(void){
 
+		srand(time(NULL));
 
 		GeneralParameters paramZero;
 		
@@ -342,7 +440,10 @@ namespace DRONE {
 		_ESTIMATED	= 7;
 		_DONE 		= 15;
 
-
+		nLossMax 			= 2; //default value
+		lossCount			= 0; //counts how many dropouts in a row;
+		setDropProbability(0);
+		setFlagVicon(false);
 		flagEnter			= true;
 		flagDebug 			= true;
 		flagTickStart 		= false;
@@ -374,6 +475,28 @@ namespace DRONE {
 
 		//Update Model
 		updateModel();
+
+
+		//dvKalman Zero
+		A_kalman				= A_kalman.Identity();
+		P_kalman				= P_kalman.Identity();
+		Q_kalman				= 15*Q_kalman.Identity();
+		
+		Q_kalman.block<4,4>(0,0) <<  1,  0,  0,  0,
+									 0,  1,  0,  0,
+									 0,  0,  1,  0,
+									 0,  0,  0,  1;
+
+		R_kalman				= 0.1*R_kalman.Identity();
+
+		H_kalman				<< H_kalman.Zero();
+
+		H_kalman.block<4,4>(0,0) <<  1,  0,  0,  0,
+									 0,  1,  0,  0,
+									 0,  0,  1,  0,
+									 0,  0,  0,  1;
+
+		x_kalman				= x_kalman.Zero();
 
 		//Mount zero class
 		paramZero.sigmat = 0.01;
@@ -411,9 +534,10 @@ namespace DRONE {
 
 		void Estimator::loadTopics(ros::NodeHandle &n) {
 
-		joy_subscriber 	   	  = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &Estimator::joyCallback, this);
-		log_publisher	 	  = n.advertise<drone_dev::BufferType>("log_debug",1);
-		odomRcv_subscriber    = n.subscribe<nav_msgs::Odometry>("/odom_global", _NOFAGENTS, &Estimator::odomRcvCallback, this);
+		joy_subscriber 	   	 = n.subscribe<sensor_msgs::Joy>("/drone/joy", 1, &Estimator::joyCallback, this);
+		// log_publisher	 	 = n.advertise<drone_dev::BufferType>("log_debug",1);
+		odomRcv_subscriber   = n.subscribe<nav_msgs::Odometry>("/odom_global", _NOFAGENTS, &Estimator::odomRcvCallback, this);
+		vicon_subscriber 	 = n.subscribe<geometry_msgs::TransformStamped>("/vicon/bebop/bebop", 1, &Estimator::viconRcvCallback, this);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -445,6 +569,17 @@ namespace DRONE {
 			setK(Vector8d::Map(&K[0],8));
 			cout << "K = [" << getK().transpose() << " ]" << endl;
 		}
+
+		double dropProbability;
+		if (n.getParam("/drone/dropProbability",dropProbability)) {
+			setDropProbability(dropProbability);
+			cout << "dropProbability = " << dropProbability << endl;
+		}
+
+		if (n.getParam("/drone/nLossMax",nLossMax)) {
+			cout << "nLossMax = " << nLossMax << endl;
+		}
+
 
 	}
 
@@ -602,7 +737,9 @@ namespace DRONE {
 	void Estimator::UpdateBuffer(const Buffer& pkt, const int agent,const int i){
 		
 		int curIndex;
-
+		VectorQuat linearVel;
+		Vector8d data;
+		
 		// Copies this row and saves it.
 		for(int k=0; k < bfSize ; k++){
 			bfStruct[agent][k][1] = bfStruct[agent][k][0];
@@ -626,6 +763,14 @@ namespace DRONE {
 		// Updates buffer index
 		bfStruct[agent][0][0].index = curIndex + 1;
 		// cout << "Agora o agente eh " << agent << " e o pacote eh " << bfStruct[agent][0][0].index << endl; //DEBUG!!!
+
+		if(getFlagVicon()){ //If Vicon is selected, now is the time to compute velocity input
+			//To get velocity...now we will search in the current buffer
+			data 						<< bfStruct[agent][i][0].data;	
+			linearVel 					= DvKalman(data.tail(4),bfStruct[agent][i][0].tsSensor,bfStruct[agent][i][1].tsSensor);
+			data.head(4) 				<< linearVel;
+			bfStruct[agent][i][0].data 	<< data;								
+		}
 
 		//Fills upre and upost with known input data
 		if(i>0){
@@ -961,9 +1106,10 @@ namespace DRONE {
 		Vector8d x;
 		
 		Matrix8d Ak;
+		 
 		Matrix8x4 Bk;
 
-		tGlobalSendCont = getThisTimeSend(); 
+		tGlobalSendCont = getThisTimeSend();
 
 		if(rcvArray.maxCoeff() > _EMPTY){
 
@@ -1299,6 +1445,146 @@ namespace DRONE {
 	/* ###########################################################################################################################*/
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: viconRcvCallback
+	*	  Created by: jrsbenevides
+	*  Last Modified: 
+	*
+	*  	 Description: Receives raw odometry data from multi-agent system (indexed).
+	*    Remarks:     The stoi() function is implemented on C++11 compliant compilers only. Therefore we used atoi()
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
+
+	void Estimator::viconRcvCallback(const geometry_msgs::TransformStamped::ConstPtr& viconRaw){
+
+		double randNumber;
+
+		randNumber = ((double) rand() / (RAND_MAX));
+
+		if((randNumber>dropProbability)||(lossCount>=nLossMax)){ 
+			lossCount =0;
+			cout<< "Drop Prob: " << dropProbability << endl;
+			cout<< "rand() " << randNumber << endl;
+			cout<< "#################good" << endl;
+			if(getIsFlagEnable()){
+				string agent;
+				int nAgent;
+				Buffer incomingMsg;
+				VectorQuat poseRcv,orientation,velocity;
+				Vector3axes rpy,positionNow;
+				double yawOdom,yawThisFrame;
+
+				if(isCMHEenabled == 1){
+
+					// Initialize buffer during first loop
+					if(flagEnter){
+						nextTimeToSend  = 0;
+						// for (int i = 0;i < nOfAgents ;i++){
+						// 	for (int j = 0;j < bfSize ;j++){
+						// 		for (int k = 0;k < 2 ;k++){
+						// 				cout << "inicio = " << bfStruct[i][j][k].index << endl;
+						// 		}
+						// 	}
+						// }
+						// counter++;
+						flagEnter		= false;
+					}
+
+					//Fill Header
+					if(getFlagVicon()){
+						nAgent =  0;
+						incomingMsg.index = 0; 
+					} else{
+						agent = viconRaw->header.frame_id; 
+						nAgent =  atoi(agent.c_str());   
+						incomingMsg.index = nAgent;
+					}
+
+					//DEBUG
+					// cout << "\n-----------------------------------" << endl;
+					// cout << "Msg: Ag " <<  nAgent << ": RECEBIDO" << endl;
+
+					incomingMsg.tsArrival = ros::Time::now().toSec();
+					incomingMsg.tsSensor  = viconRaw->header.stamp.toSec(); //I believe that vicon does not provide a timestamp!
+					// cout << "tempoArrival = " << incomingMsg.tsArrival << endl;
+					// cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
+					cout << "Tempo Decorrido: " << incomingMsg.tsArrival - incomingMsg.tsSensor << endl; //DEBUG
+					incomingMsg.tGSendCont = 0;
+					//Fill Data
+
+					positionNow		<< 	viconRaw->transform.translation.x, 
+										viconRaw->transform.translation.y, 
+										viconRaw->transform.translation.z;
+										
+					orientation 	<< 	viconRaw->transform.rotation.w, 
+										viconRaw->transform.rotation.x, 
+										viconRaw->transform.rotation.y, 
+										viconRaw->transform.rotation.z;
+
+
+					velocity		<< 0,0,0,0; //This will be replaced for real data after computation in dvKalman/dwKalman in the buffer section.
+
+					/*Reset frame location*/
+					if (!getIsOdomStarted(nAgent)) {
+						Conversion::quat2angleZYX(rpy,orientation);
+						yawOdom = angles::normalize_angle(rpy(2));				//Added normalize...check if it works!!!
+						poseRcv << positionNow,yawOdom;
+						setPoseZero(poseRcv,nAgent);
+						setIsOdomStarted(true,nAgent);
+					}
+
+					//Based on initial pose, calculate transformed pose			
+					setPosition(positionNow,nAgent);
+					// yawThisFrame = setOrientation(orientation,nAgent);
+					//Velocity is gonna be transformed from global to global
+					//yawThisFrame is gonna be the current yaw value given the zero
+					setOrientationVicon(orientation,yawThisFrame,nAgent);
+
+
+					// //To get velocity...now we will search in the current buffer
+					// setPosition(positionNow);
+					// positionNow		= drone.getPosition();
+					// linearVel 		= drone.DvKalman(positionNow,timeNow,timePast); //global terms instead of local (IMU)
+					
+					// setOrientation(orientationVicon);
+					// orientationNow	= drone.getOrientation();
+					// angularVel 		= drone.DwKalman(orientationNow,timeNow,timePast);									
+
+					//When it comes from odometry, velocity is local, thus we need to transform it: dvg = Rot*dvb	
+					
+					
+					incomingMsg.data << velocity,
+										positionNow,
+										yawThisFrame;
+
+					if(rcvArray(nAgent) == _EMPTY){
+						
+						// cout << "Status: RECEBIDO Buffer Principal" << endl; //DEBUG
+						setBuffer(incomingMsg); //Save on main receive buffer
+						rcvArray(nAgent) = _RECEIVED;
+
+					} else {
+						if(rcvArrayBuffer(nAgent) < bufMaxSize){
+							// cout << "Status: RECEBIDO Buffer Pendente : Ag = " << nAgent << endl;
+							setBufferNext(incomingMsg); 	//Save on pending receive buffer
+							rcvArrayBuffer(nAgent)++; //This call HAS TO come after the set above
+							// cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
+						}
+					}	
+
+					// if(nAgent == 0){
+					// 	cout << "Msg Recebida:" << odomRaw->pose.pose.position.x << " " << odomRaw->pose.pose.position.y << " " << odomRaw->pose.pose.position.z << endl;
+					// }
+
+				}
+			}
+		} else{
+			cout<< "################# DROPOUT!!!! " << endl;
+			lossCount++;
+		}
+	}
+
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: odomRcvCallback
 	*	  Created by: jrsbenevides
 	*  Last Modified: 
@@ -1308,7 +1594,7 @@ namespace DRONE {
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
 
-	void Estimator::odomRcvCallback(const nav_msgs::Odometry::ConstPtr& odomRaw){
+	void Estimator::odomRcvCallback(const nav_msgs::Odometry::ConstPtr& odomRaw){		
 
 		if(getIsFlagEnable()){
 			string agent;
@@ -1379,6 +1665,8 @@ namespace DRONE {
 				//Based on initial pose, calculate transformed pose			
 				setPosition(positionNow,nAgent);
 				// yawThisFrame = setOrientation(orientation,nAgent);
+				//Velocity is gonna be transformed from global to global
+				//yawThisFrame is gonna be the current yaw value given the zero
 				setOrientation(orientation,yawThisFrame,nAgent,velocity);
 				
 				
@@ -1407,7 +1695,7 @@ namespace DRONE {
 
 			}
 		}
-	}	
+	}		
 }
 
 
