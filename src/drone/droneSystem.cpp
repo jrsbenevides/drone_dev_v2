@@ -338,7 +338,7 @@ namespace DRONE {
 
 		//No use for NCS
 		// odom_subscriber 		 = n.subscribe<nav_msgs::Odometry>("/drone/odom", 1, &System::odomCallback, this);
-		// cmd_vel_publisher 		 = n.advertise<geometry_msgs::Twist>("/drone/cmd_vel",1);
+		cmd_vel_publisher 		 = n.advertise<geometry_msgs::Twist>("/drone/cmd_vel",1);
 		// transfPosition_publisher = n.advertise<nav_msgs::Odometry>("/drone/transf_position",1);
 		// waypoint_subscriber 	 = n.subscribe<nav_msgs::Odometry>("/drone/waypoint", 1, &System::waypointCallback, this);
 		// orbslam_subscriber 	 	 = n.subscribe<nav_msgs::Odometry>("/scale/log", 1, &System::orbSlamCallback, this);
@@ -645,7 +645,98 @@ namespace DRONE {
 			}
 			flagMonitorSelect = false;
 		}
-	}			
+	}		
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: ncsVicon (Networked Control System)
+	*	  Created by: jrsbenevides
+	*  Last Modified:
+	*
+	*  	 Description: 1. Estimates state in a NCS subject to network-induced delay and packet loss
+	*				  2. Computes optimal control
+	*                 3. Sends to Multi-Agent System
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	void System::ncsVicon(){
+		
+		int agent;
+		VectorQuat input;
+		Vector12x1 vecDesired;
+		double tTempo;
+
+		geometry_msgs::Twist cmdValue;
+
+
+		if((drone.getIsFlagEnable())){
+				
+			if(flagMonitorSelect == false){ //Detects rising edge
+				//Verifica se já houve alguma mudança alguma vez...novo
+				// if(network.getReuseEstimate()){
+				// 	cout << "faz algo" << endl;
+				// }
+				planner.setStartTime(ros::Time::now().toSec());
+				flagMonitorSelect = true;
+			}
+
+			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){
+
+				if(contaEnvio<1)
+					network.setTimeNext(network.getThisTimeSend()); 
+
+				// network.ComputeEstimation_identGlobal(); 				// Tries to compute an estimate (test with new formulation)
+				network.ComputeEstimation_identGlobal(); 				// Tries to compute an estimate
+
+				if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
+					drone.setF2(network.getK2());
+					MAScontrol();							//Only working for RLQR -> updateRLQRGain	
+					network.setFlagComputeControl(false);
+				}
+				
+				agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
+
+				if(agent>=0){
+					vecDesired = planner.getPlanTrajectory(agent,network.getThisTimeSend());
+					input = drone.MASControlInput(network.getEstimatePose(agent),vecDesired);
+					cmdValue.linear.x  = input(0);
+					cmdValue.linear.y  = input(1);
+					cmdValue.linear.z  = input(2);
+					cmdValue.angular.x = 0;            
+					cmdValue.angular.y = 0;            
+					cmdValue.angular.z = input(3);
+					network.setCmdAgentDone(agent, input); //network.rcvArray(agent) = 15; Coloco o input como a saída do sistema upost => não deixo nenhuma nova mensagem daquele agente entrar no calculo (por enquanto)
+					cout << "Calculada a entrada referente ao pacote " << network.bfStruct[agent][0][0].index << " do agente " << agent << endl;
+				}
+
+				//Testing if can send already
+				network.checkSendingConditions();
+			
+				if(network.getFlagReadyToSend()){			//Publishes information to broadcast
+					contaEnvio++;
+					cout << "\n###############################" << endl;
+					cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
+					cout << "###############################\n" << endl;
+					cmd_vel_publisher.publish(cmdValue);
+					tTempo = ros::Time::now().toSec();
+					network.setLastTimeSent(tTempo);
+					network.pubMyLog(0); //If we want it to only pub the last message (as in identification, replace param 0 to bfSize-1)
+					cout << "Levei " << ros::Time::now().toSec() - tTempo << " s para mandar essas mensagens" << endl;
+					network.setFlagComputeControl(true);
+					network.setRcvArrayZero(); 				//Resets array for receiving new messages
+					network.setToken(true);					//Indicates to the network package that message has been sent already
+					network.setTimeNext(network.getThisTimeSend()); //debug
+					//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
+				}
+			}
+		} else{
+			if(flagMonitorSelect == true){ //Detects falling edge
+				network.ResetForEstimPause(); 				//Resets functions for an eventual new estimation
+				network.setReuseEstimate(true); 			//Informs the system that there was already an estimation
+				contaEnvio = 0;
+			}
+			flagMonitorSelect = false;
+		}
+	}				
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: control
@@ -991,16 +1082,18 @@ namespace DRONE {
 	      if (joy->buttons[14]) {
 			drone.setIsOdomStarted(false);
 			network.ZeroIsOdomStarted();
+			// cout << "RESET BUTTON!!!" << endl;
 	      } 
 
 		  if(joy->buttons[6]){
 		    drone.setIsFlagEnable(true);
 			network.setIsFlagEnable(true);
-			// cout << "oi" << endl;
+			// cout << "select ON" << endl;
 		  }
 		  else{
 		  	drone.setIsFlagEnable(false);
 			network.setIsFlagEnable(false);
+			// cout << "select Off" << endl;
 		  }	
       } else{
 		  if (joy->buttons[5]) {

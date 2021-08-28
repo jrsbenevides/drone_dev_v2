@@ -1791,7 +1791,7 @@ namespace DRONE {
 		z = posCurrent;
 
 		dt 		= timeNow - timePast;
-		// dt 		= 0.05;
+	// dt 		= 0.05;
 
 		A_kalman.block<3,3>(0,3) << dt,  0,  0,
 									 0, dt,  0,

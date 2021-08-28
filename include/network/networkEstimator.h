@@ -65,6 +65,7 @@ namespace DRONE {
 
 		double 	PI;
 		double 	t;
+		double 	lastTimeSent;
 	  
 	  public:
 	  	ros::Publisher 	log_publisher;
@@ -87,6 +88,7 @@ namespace DRONE {
 		int thrCompEstimation;
 
 	  	double stepT, nextTimeToSend, updateRate,coeffUpdRate;
+		double tGlobalSendCont;
 
 		double  dropProbability;
 
@@ -158,7 +160,8 @@ namespace DRONE {
 		Vector2d 	isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, const int& agent, const int& iter);
 		void 		PresentDebug(void);
 		void 		pubMyLog(const int& valStart);
-		VectorQuat DvKalman(const VectorQuat& posCurrent, const double& timeNow, const double& timePast);
+		VectorQuat 	DvKalman(const VectorQuat& posCurrent, const double& timeNow, const double& timePast);
+		void 		checkSendingConditions(void);
 		
 		void 		setK(const Vector8d& Kvalue);
 		void 		setBuffer(const Buffer& msg);
@@ -184,7 +187,11 @@ namespace DRONE {
 		void 		setKalmanX(const Vector8d& value);
 		void 		setKalmanP(const Matrix8d& value);
 		void 		setDropProbability(const double& value);
+		void 		setTimeNext(const double& value);
+		void 		setLastTimeSent(const double& value);
 
+		double 		getLastTimeSent(void);
+		double 		getTimeNext(void);
 		Vector8d 	getEstimatePose(const int agent);
 		Vector8d 	getK(void);
 		double 		getThisTimeSend(void);

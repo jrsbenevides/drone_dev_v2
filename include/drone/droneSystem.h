@@ -155,6 +155,7 @@ namespace DRONE {
 		void bootOrbSlam(const double& timeValue);
 		void testTimeout(void);
 		void ncs();
+		void ncsVicon();
 		void control();
 		void MAScontrol();
 		Vector4d MASControlInput(const int& agent);

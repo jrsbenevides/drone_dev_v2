@@ -201,7 +201,14 @@ namespace DRONE {
 	void Estimator::setDropProbability(const double& value){
 		dropProbability = value;
 	}
-
+	
+	void Estimator::setTimeNext(const double& value){
+		tGlobalSendCont = value;
+	}
+	
+	void Estimator::setLastTimeSent(const double& value){
+		lastTimeSent = value;
+	}
 
 
 	/* ###########################################################################################################################*/
@@ -209,6 +216,14 @@ namespace DRONE {
 	/* ########################################                 GETTERS                 ##########################################*/
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
+
+	double Estimator::getLastTimeSent(void){
+		return lastTimeSent;
+	}
+
+	double Estimator::getTimeNext(void){
+		return tGlobalSendCont;
+	}
 
 	Matrix4d Estimator::getK2(void){
 		return K2;
@@ -334,6 +349,35 @@ namespace DRONE {
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 
+
+	void Estimator::checkSendingConditions(void){
+		// Checks if it is ready to go timewise and based on starting condition
+
+		double tNow;
+
+		tNow = ros::Time::now().toSec();
+		if(flagTickStart == true){ //It means that tGlobalSendCont SHOULD have a meaningful computing value
+			if(tNow >= tGlobalSendCont - updateRate*coeffUpdRate){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
+				
+				if((flagSentToken == false)&(tNow - getLastTimeSent() > 0.3*updateRate)){
+					cout << "flagSentToken = false" << endl;
+					setFlagReadyToSend(true);
+				} else {
+					cout << "flagSentToken = true" << endl;
+					setFlagReadyToSend(false);
+				}
+			} 
+			// else {
+			// 	if(ros::Time::now().toSec() > tGlobalSendCont - updateRate){
+			// 		cout << "Ainda nao chegou e ta longe..." << endl;
+			// 		setFlagReadyToSend(false);
+			// 		flagSentToken = false;
+			// 	}
+			// }
+		}	
+	}
+
+
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: DvKalman
 	*	  Created by: jrsbenevides
@@ -454,12 +498,12 @@ namespace DRONE {
 		setFlagComputeControl(true);
 		setToken(false);
 		setReuseEstimate(false);
-		updateRate          = 0.05; //5Hz
-		coeffUpdRate		= 0.0217; //0.0217;
+		updateRate          = 0.05; //20Hz
+		coeffUpdRate		= 0.1; //0.0217;
 		isCMHEenabled		= 0;
 		nOfAgents			= _NOFAGENTS;
 		bfSize              = _BFSIZE;
-		thrCompEstimation 	= 5*bfSize;
+		thrCompEstimation 	= 5000*bfSize;
 		PI 					= 3.141592653589793;
    		t 			  		= 0.0;
 		stepT				= 1; //number of steps in integration
@@ -521,6 +565,7 @@ namespace DRONE {
 		}
 
 		setZeroAllBuffers();
+		setLastTimeSent(0);
 	}	
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1150,7 +1195,7 @@ namespace DRONE {
 								genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
 								genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
 								genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
-								genParam[agent].sigmat = 0.02;	
+								genParam[agent].sigmat = 0.01;	
 								cout << "PRIMEIRISSIMO ESTIMADO!!: " <<  estParam.block<2,1>(0,agent) << endl;
 							}
 						}
@@ -1270,8 +1315,9 @@ namespace DRONE {
 		// Declare and start local variables
 		bool status = false, flagExitSearch;
 		int agent = 0,tambuf;
-		double tBar, deltaT, tGlobalSendCont,tempValue;
+		double tBar, deltaT,tempValue;
 		
+
 		Vector2d sEst;
 		VectorQuat uComp, uPre;
 		Vector8d x;
@@ -1279,7 +1325,24 @@ namespace DRONE {
 		Matrix8d Ak;
 		Matrix8x4 Bk;
 
-		tGlobalSendCont = getThisTimeSend(); 
+		//ROTINA DE DEBUG
+
+		if(tGlobalSendCont>0){
+			double tNowDebug;
+			tNowDebug = ros::Time::now().toSec();	
+			// tNowDebug = ros::Time::now().toSec();			
+			if(tNowDebug < tGlobalSendCont){
+				tNowDebug = tGlobalSendCont - tNowDebug;
+				if(tNowDebug <= updateRate){
+					cout << "GOOD!" << endl;
+				}
+			} else {
+				// tNowDebug -= tGlobalSendCont;
+				tNowDebug -= tGlobalSendCont;
+				// for (int i =0;i<100;i++)
+					cout << "OOPS!! T = " << tNowDebug << endl;
+			}
+		}
 
 		if(rcvArray.maxCoeff() > _EMPTY){
 
@@ -1295,8 +1358,8 @@ namespace DRONE {
 			
 				if(status == true){ // 		If buffer received this new info:
 					cout  << "Sucesso: Agente: " << agent << " e novo tamanho preenchido: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
-					if(bfStruct[agent][0][0].index >= bfSize){ //Buffer is ready to estimate
-						if(bfStruct[agent][0][0].index == bfSize){ //%Initial guess for estimate
+					if(bfStruct[agent][0][0].index >= thrCompEstimation){ //Buffer is ready to estimate
+						if(bfStruct[agent][0][0].index == thrCompEstimation){ //%Initial guess for estimate
 							if(true){  //Initial guess will be skipped if there was already a prior estimation (was getReuseEstimate()==false)
 
 								estParam.block<2,1>(0,agent) << 1.0,
@@ -1310,7 +1373,7 @@ namespace DRONE {
 								cout << "EU IGNOREI O PRIMEIRO LOOP DE INICIALIZACAO" << endl;
 							}
 						}
-						updateEKF_identGlobal(agent);
+						updateEKF_2D(agent);
 					}
 					// else if(bfStruct[agent][0][0].index == 1){
 					// 	bfStruct[agent][bfSize-1][0].upre << 0.0, 0.0, 0.0, 0.0;
@@ -1332,7 +1395,7 @@ namespace DRONE {
 
 				// cout << "Entrei aqui!" << endl;    
 							
-				if(bfStruct[agent][0][0].index > 20*bfSize){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
+				if(bfStruct[agent][0][0].index > thrCompEstimation){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
 					sEst << estParam.block<2,1>(0,agent);
 
 					cout << "Estimativa alpha, beta = " << sEst.transpose() << endl;
@@ -1391,23 +1454,22 @@ namespace DRONE {
 		// if(rcvArray.minCoeff() == _DONE){ //DEBUG....................... _DONE
 		//if(rcvArray.minCoeff() == _ESTIMATED){
 		
-		// Checks if it is ready to go timewise and based on starting condition
-		if(flagTickStart == true){ //It means that tGlobalSendCont SHOULD have a meaningful computing value
-			if(tGlobalSendCont - ros::Time::now().toSec() <= updateRate*coeffUpdRate){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
-				if(flagSentToken == false){
-					setFlagReadyToSend(true);
-				} else {
-					setFlagReadyToSend(false);
-				}
-				
-			} 
-			else {
-				if(tGlobalSendCont - ros::Time::now().toSec() < updateRate){
-					setFlagReadyToSend(false);
-					flagSentToken = false;
-				}
-			}
-		}
+		// // Checks if it is ready to go timewise and based on starting condition
+		// if(flagTickStart == true){ //It means that tGlobalSendCont SHOULD have a meaningful computing value
+		// 	if(ros::Time::now().toSec() >= tGlobalSendCont - updateRate*coeffUpdRate){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
+		// 		if(flagSentToken == false){
+		// 			setFlagReadyToSend(true);
+		// 		} else {
+		// 			setFlagReadyToSend(false);
+		// 		}
+		// 	} 
+		// 	else {
+		// 		if(ros::Time::now().toSec() > tGlobalSendCont - updateRate){
+		// 			setFlagReadyToSend(false);
+		// 			flagSentToken = false;
+		// 		}
+		// 	}
+		// }
 		//}		
 	}
 
@@ -1462,9 +1524,9 @@ namespace DRONE {
 
 		if((randNumber>dropProbability)||(lossCount>=nLossMax)){ 
 			lossCount =0;
-			cout<< "Drop Prob: " << dropProbability << endl;
-			cout<< "rand() " << randNumber << endl;
-			cout<< "#################good" << endl;
+			//cout<< "Drop Prob: " << dropProbability << endl;
+			//cout<< "rand() " << randNumber << endl;
+			//cout<< "#################good" << endl;
 			if(getIsFlagEnable()){
 				string agent;
 				int nAgent;
