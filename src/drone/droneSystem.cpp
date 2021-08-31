@@ -665,6 +665,8 @@ namespace DRONE {
 		Vector12x1 vecDesired;
 		double tTempo;
 
+		
+
 		geometry_msgs::Twist cmdValue;
 
 
@@ -679,7 +681,7 @@ namespace DRONE {
 				flagMonitorSelect = true;
 			}
 
-			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){
+			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){ //makes sure a vicon message has arrived already
 
 				if(contaEnvio<1)
 					network.setTimeNext(network.getThisTimeSend()); 
@@ -688,7 +690,8 @@ namespace DRONE {
 				network.ComputeEstimation_identGlobal(); 				// Tries to compute an estimate
 
 				if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
-					drone.setF2(network.getK2());
+					drone.setOrientationParameters(network.getCurrentYaw(0),0);
+					// drone.setF2(network.getK2());
 					MAScontrol();							//Only working for RLQR -> updateRLQRGain	
 					network.setFlagComputeControl(false);
 				}
@@ -696,6 +699,7 @@ namespace DRONE {
 				agent = network.nextAgentToSend();			//Mount input to send => u = K*(q-qd) based on the available received data
 
 				if(agent>=0){
+					drone.setOrientationParameters(network.getCurrentYaw(agent),agent);
 					vecDesired = planner.getPlanTrajectory(agent,network.getThisTimeSend());
 					input = drone.MASControlInput(network.getEstimatePose(agent),vecDesired);
 					cmdValue.linear.x  = input(0);
@@ -704,8 +708,11 @@ namespace DRONE {
 					cmdValue.angular.x = 0;            
 					cmdValue.angular.y = 0;            
 					cmdValue.angular.z = input(3);
+					// cmdValueRepeat = cmdValue;
+					inputRepeat = input;
+					cout << "input: " << input.transpose() << endl;
 					network.setCmdAgentDone(agent, input); //network.rcvArray(agent) = 15; Coloco o input como a saída do sistema upost => não deixo nenhuma nova mensagem daquele agente entrar no calculo (por enquanto)
-					cout << "Calculada a entrada referente ao pacote " << network.bfStruct[agent][0][0].index << " do agente " << agent << endl;
+					// cout << "Calculada a entrada referente ao pacote " << network.bfStruct[agent][0][0].index << " do agente " << agent << endl;
 				}
 
 				//Testing if can send already
@@ -713,20 +720,30 @@ namespace DRONE {
 			
 				if(network.getFlagReadyToSend()){			//Publishes information to broadcast
 					contaEnvio++;
-					cout << "\n###############################" << endl;
-					cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
-					cout << "###############################\n" << endl;
+					// cout << "\n###############################" << endl;
+					// cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
+					// cout << "###############################\n" << endl;
 					cmd_vel_publisher.publish(cmdValue);
 					tTempo = ros::Time::now().toSec();
 					network.setLastTimeSent(tTempo);
-					network.pubMyLog(0); //If we want it to only pub the last message (as in identification, replace param 0 to bfSize-1)
-					cout << "Levei " << ros::Time::now().toSec() - tTempo << " s para mandar essas mensagens" << endl;
+					// network.pubMyLog(0); //If we want it to only pub the last message (as in identification, replace param 0 to bfSize-1)
+					// cout << "Levei " << ros::Time::now().toSec() - tTempo << " s para mandar essas mensagens" << endl;
 					network.setFlagComputeControl(true);
+					network.setFlagReadyToSend(false);
 					network.setRcvArrayZero(); 				//Resets array for receiving new messages
 					network.setToken(true);					//Indicates to the network package that message has been sent already
 					network.setTimeNext(network.getThisTimeSend()); //debug
 					//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
+				} else	{
+					cmdValue.linear.x  = inputRepeat(0);
+					cmdValue.linear.y  = inputRepeat(1);
+					cmdValue.linear.z  = inputRepeat(2);
+					cmdValue.angular.x = 0;            
+					cmdValue.angular.y = 0;            
+					cmdValue.angular.z = inputRepeat(3);
+					cmd_vel_publisher.publish(cmdValue);
 				}
+				
 			}
 		} else{
 			if(flagMonitorSelect == true){ //Detects falling edge
@@ -903,7 +920,7 @@ namespace DRONE {
 
 		} else if(controlSelect.compare("RLQR") == 0){
 
-			// cout << "### Robust LQR ###" << endl;
+			cout << "### Robust LQR ###" << endl;
 
 			drone.updateRLQRGain();
 
@@ -1078,31 +1095,22 @@ namespace DRONE {
 
 	void System::joyCallback(const sensor_msgs::Joy::ConstPtr& joy) 
 	{
-      if(autoMode == 0){
-	      if (joy->buttons[14]) {
-			drone.setIsOdomStarted(false);
-			network.ZeroIsOdomStarted();
-			// cout << "RESET BUTTON!!!" << endl;
-	      } 
+		if (joy->buttons[14]) {
+		drone.setIsOdomStarted(false);
+		network.ZeroIsOdomStarted();
+		// cout << "RESET BUTTON!!!" << endl;
+		} 
 
-		  if(joy->buttons[6]){
-		    drone.setIsFlagEnable(true);
-			network.setIsFlagEnable(true);
-			// cout << "select ON" << endl;
-		  }
-		  else{
-		  	drone.setIsFlagEnable(false);
-			network.setIsFlagEnable(false);
-			// cout << "select Off" << endl;
-		  }	
-      } else{
-		  if (joy->buttons[5]) {
-			drone.setIsFlagEnable(false);
-			if(flagEmergency == 0){
-				flagEmergency == 1;
-			}
-	      }       	
-      }
+		if(joy->buttons[6]){
+		drone.setIsFlagEnable(true);
+		network.setIsFlagEnable(true);
+		// cout << "select ON" << endl;
+		}
+		else{
+		drone.setIsFlagEnable(false);
+		network.setIsFlagEnable(false);
+		// cout << "select Off" << endl;
+		}	
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,7 @@
 /*
  * droneSystem.h
  *
- *  Created on: 28/12/2020
+ *  Created on: Dec 28, 2020
  *      Author: jrsbenevides
  */
 
@@ -71,12 +71,14 @@ namespace DRONE {
 	  	ros::Publisher 	log_publisher;
 		VectorBoolAgent 	isOdomStarted;
 	  	bool flagEnter, flagDebug;
+		bool rcvViconFlag;
 
 	    int counter; //PARA DEBUG APENAS 
-		int	nOfAgents,bfSize,bufMaxSize;
+		int	nOfAgents,bfSize;
 		VectorQuat pose0[_NOFAGENTS];
 		Matrix3d RotGlobal[_NOFAGENTS];
 		double yaw0[_NOFAGENTS];
+		double yawNow[_NOFAGENTS];
 		Vector8d estPose[_NOFAGENTS]; // 1 = nOfAgents
 
 
@@ -87,7 +89,7 @@ namespace DRONE {
 
 		int thrCompEstimation;
 
-	  	double stepT, nextTimeToSend, updateRate,coeffUpdRate;
+	  	double stepT, nextTimeToSend, updateRate, coeffUpdRate;
 		double tGlobalSendCont;
 
 		double  dropProbability;
@@ -127,14 +129,14 @@ namespace DRONE {
 
 		GeneralParameters genParam[_NOFAGENTS]; //[] = nOfAgents
 
-		Buffer bfTemp[_BFSIZE]; //[] = bfSize
+		Buffer bfTemp[_NOFAGENTS]; //[] = bfSize
 
-		Buffer bfTempPending[_BFSIZE][_BUFMAXSIZE]; //[] = bfSize,tamMaxBuffer
+		Buffer bfTempPending[_NOFAGENTS][_BUFMAXSIZE]; //[] = _NOFAGENTS,tamMaxBuffer
 
 		Buffer bfStruct[_NOFAGENTS][_BFSIZE][2]; //nOfAgents,bfSize, 2
 
-		Matrix<double,_BFSIZE,1> rcvArray;	  	//[] = bfSize
-		Matrix<double,_BFSIZE,1> rcvArrayBuffer; 	//[] = bfSize
+		Matrix<double,_NOFAGENTS,1> rcvArray;	  	//[] = bfSize
+		Matrix<double,_NOFAGENTS,1> rcvArrayBuffer; 	//[] = bfSize
 
 		Matrix<double,2,_NOFAGENTS>  estParam; // alpha;beta in each column for every agent
 
@@ -150,7 +152,7 @@ namespace DRONE {
 		void 		loadTopics(ros::NodeHandle &n);
 		void 		loadSettings(ros::NodeHandle &n);
 		bool 		AddPkt2Buffer(const Buffer& pkt, const int agent);
-		void 		UpdateBuffer(const Buffer& pkt, const int agent,const int i);
+		void 		UpdateBuffer(const Buffer& pkt, const int& agent,const int& i);
 		void 		updateEKF(const int agent);
 		void 		updateEKF_identGlobal(const int agent);
 		void 		updateEKF_2D(const int agent);
@@ -189,6 +191,7 @@ namespace DRONE {
 		void 		setDropProbability(const double& value);
 		void 		setTimeNext(const double& value);
 		void 		setLastTimeSent(const double& value);
+		void 		setCurrentYaw(const double& yawValue, const int& agent);
 
 		double 		getLastTimeSent(void);
 		double 		getTimeNext(void);
@@ -208,6 +211,8 @@ namespace DRONE {
 		bool 		getFlagVicon(void);
 		Vector8d 	getKalmanX(void);
 		Matrix8d 	getKalmanP(void);
+		bool 		getToken(void);
+		double 		getCurrentYaw(const int& agent);
 		
 	};
 } // namespace DRONE

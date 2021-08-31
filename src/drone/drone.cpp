@@ -239,6 +239,39 @@ namespace DRONE {
 	    dYawError  	= dYaw - dYawDesired;
 	}
 
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: set Orientation Parameters
+	*	  Created by: jrsbenevides
+	*  Last Modified: jrsbenevides
+	*
+	*  	 Description: 1. gets last known yaw (actually, norm(yaw - yaw0))
+	* 				  REMARK: agent is not being used, but should be extended for the MAS case
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	void Drone::setOrientationParameters (const double& yaw, const int& agent){
+		
+		double sinyaw, cosyaw;
+
+		sinyaw = sin(yaw);
+		cosyaw = cos(yaw);
+
+		Rotation.block<2,2>(0,0) << cosyaw, -sinyaw,
+				 	 	 	 	 	sinyaw,  cosyaw;
+
+		// cout << "K for this: " << K.transpose() << endl;
+
+		F1 << K(0)*cosyaw, -K(2)*sinyaw, 	0,      0,
+			  K(0)*sinyaw,  K(2)*cosyaw, 	0,      0,
+			  			0,		  	  0, K(4),   	0,
+			  			0,            0,    0,   K(6);
+
+		F2 << K(1)*cosyaw, -K(3)*sinyaw, 	0,      0,
+			  K(1)*sinyaw,  K(3)*cosyaw, 	0,      0,
+			  			0,			  0, K(5),  	0,
+			  			0,            0,    0,   K(7);
+	}
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: set K
 	*	  Created by: jrsbenevides
@@ -1367,16 +1400,16 @@ namespace DRONE {
 			// x << dxError, xError;
 
 			Matrix4d Rr;
-			Matrix8d Acont,Adisc,Qr;
+			Matrix8d Acont,Adisc,Qr,L;
 			Matrix8x4 Bcont,Bdisc;
 			Matrix4x8 K;
 
 
-			Rr << 1.0, 0.0, 0.0, 0.0,
-				  0.0, 1.0, 0.0, 0.0,
-				  0.0, 0.0, 1.0, 0.0,
-				  0.0, 0.0, 0.0, 1.0;
-
+			// Rr << 1.0, 0.0, 0.0, 0.0,
+			// 	  0.0, 1.0, 0.0, 0.0,
+			// 	  0.0, 0.0, 1.0, 0.0,
+			// 	  0.0, 0.0, 0.0, 1.0;
+			Rr = Rr.Identity();
 			Rr = 0.15*Rr;
 
 			Qr << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0, 0.0,
@@ -1388,23 +1421,25 @@ namespace DRONE {
 				  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0,
 				  0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0, 5.0;
 
-			Qr = 1e-1*Qr;
+			Qr = 0.1*Qr;
 
 			K = K.Zero();
+			L = L.Zero();
 
-			F2 = getF2();
+			// F2 = getF2();
 
-			// Acont << -F2*Rotation.transpose(), MatrixXd::Zero(4,4),
-			// 		 MatrixXd::Identity(4,4),  MatrixXd::Zero(4,4);
-			Acont << F2, MatrixXd::Zero(4,4),
+			Acont << -F2*Rotation.transpose(), MatrixXd::Zero(4,4),
 					 MatrixXd::Identity(4,4),  MatrixXd::Zero(4,4);
+			// Acont << F2, MatrixXd::Zero(4,4),
+					//  MatrixXd::Identity(4,4),  MatrixXd::Zero(4,4);
 
 			Bcont << MatrixXd::Identity(4,4),
 					 MatrixXd::Zero(4,4);
 
 			Conversion::c2d(Adisc,Bdisc,Acont,Bcont,0.05); //UPDATE RATE --DEBUG
 
-			RecursiveLQR(K,Adisc,Bdisc,Rr,Qr);
+			// RecursiveLQR(K,Adisc,Bdisc,Rr,Qr);
+			RLQR(L,K,Adisc,Bdisc,Rr,Qr);
 
 			setControlGain(K);
 		}
@@ -1615,6 +1650,7 @@ namespace DRONE {
 
 		Vector4d xDesired,dxDesired, d2xDesired,u,input;
 		Vector8d x,qDesired;
+		Matrix4x8 Kgain;
 
 		xDesired	= qdVector.head(4);
 
@@ -1624,13 +1660,18 @@ namespace DRONE {
 
 		qDesired 			<< dxDesired, xDesired;	
 
-		x 					<< q - qDesired;		
+		x 					<< q - qDesired;	
 
-		u = Krlqr*x;
 
-		input = (u + d2xDesired + F2*Rotation.transpose()*dxDesired);
+		cout << "erro atual: " << x << endl;
+		
 
-		input = F1.inverse()*input;
+		Kgain = getControlGain();
+		cout << "K calculado: " << Kgain << endl;	
+		
+		u = Kgain*x;
+
+		input = F1.inverse()*(u + d2xDesired + F2*Rotation.transpose()*dxDesired);
 
 		inputSaturation(input);
 			
@@ -1887,19 +1928,19 @@ namespace DRONE {
 
 	void Drone::inputSaturation(Vector4d& input){
 
-		Matrix4d mtFreeze;
-		mtFreeze = freezeConstant*mtFreeze.Identity();
-		// mtFreeze = mtFreeze.Identity();
-		if(freezeConstant > 0.1){  //SE FOR MOVIMENTO!
-			mtFreeze(2,2) = 1.0;
-		}
-		if(freezeConstant == 0.5){ //SIGNIFICA QUE ESTA NO YAW
-			// cout << "MAXIMIZANDO XY" << endl;
-			mtFreeze(0,0) = 0.7;
-			mtFreeze(1,1) = 0.7;
-			mtFreeze(2,2) = 0.7;
-			mtFreeze(3,3) = 0.7;
-		}
+		// Matrix4d mtFreeze;
+		// mtFreeze = freezeConstant*mtFreeze.Identity();
+		// // mtFreeze = mtFreeze.Identity();
+		// if(freezeConstant > 0.1){  //SE FOR MOVIMENTO!
+		// 	mtFreeze(2,2) = 1.0;
+		// }
+		// if(freezeConstant == 0.5){ //SIGNIFICA QUE ESTA NO YAW
+		// 	// cout << "MAXIMIZANDO XY" << endl;
+		// 	mtFreeze(0,0) = 0.7;
+		// 	mtFreeze(1,1) = 0.7;
+		// 	mtFreeze(2,2) = 0.7;
+		// 	mtFreeze(3,3) = 0.7;
+		// }
 
 		// cout << "mtFreeze" << mtFreeze << endl;
 		
@@ -1928,7 +1969,7 @@ namespace DRONE {
 			}
 		}
 
-		input = mtFreeze*input; //DEFAULT = 1, em Cheguei é 0.05!!
+		// input = mtFreeze*input; //DEFAULT = 1, em Cheguei é 0.05!!
 	}		
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2040,7 +2081,7 @@ namespace DRONE {
         MatrixSizeMcal Mcal;
 
         double lambda;
-        double delta = 1*randwithin(-1,1);
+        // double delta = 1*randwithin(-1,1);
 
         const int n = 8; //# of rows - F
         const int m = 4; //# of columns - G
@@ -2072,8 +2113,8 @@ namespace DRONE {
         sigma << (1/mi)*MatrixXd::Identity(8,8)-(1/lambda)*H*H.transpose(), MatrixXd::Zero(8,4),
                  MatrixXd::Zero(4,8),                         (1/lambda)*MatrixXd::Identity(4,4);
 
-        Finc = F + delta*H*Ef;
-        Ginc = G + delta*H*Eg;
+        // Finc = F + delta*H*Ef;
+        // Ginc = G + delta*H*Eg;
 
         Fest << F, Ef;
         Gest << G, Eg;

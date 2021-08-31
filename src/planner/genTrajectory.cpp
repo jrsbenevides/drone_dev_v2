@@ -850,34 +850,6 @@ namespace DRONE {
 
 	cout << "Current Time: " << t << endl;
 
-	if(autoMode == 1){
-		if(getIsControlStarted()){  //Controle habilitado e pronto para usar!
-			if (t <= tFinal){
-				ackMsgGlobal = (ackMsgGlobal & (~0x0F))|0x0F;
-				cout << "BUSY"<< endl;
-			}
-			else{
-				ackMsgGlobal = (ackMsgGlobal & (~0x0F))|0x0A;
-				cout << "FINISHED"<< endl;
-			}
-		}
-		else{
-			if(getFlagAbort()){
-				ackMsgGlobal = (ackMsgGlobal & (~0x0F))|0x05;
-				cout << "ABORTED" << endl;
-			}
-			else{
-				ackMsgGlobal = (ackMsgGlobal & (~0x0F))|0x00;
-				cout << "IDLE"<< endl;
-			}
-		}
-		ackMsg.data = ackMsgGlobal;
-		ackMessage_publisher.publish(ackMsg);	
-	}
-		
-
-	// waypoint_publisher.publish(mGoal); //verificar!!!!
-
 	return waypoint;
 		
 }	

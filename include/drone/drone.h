@@ -175,6 +175,7 @@ namespace DRONE {
 			void		setControlGain(const Matrix4x8& K);
 			void 		setF2(const Matrix4d& matrix);
 			void 		setUpdateRate(const double& value);
+			void 		setOrientationParameters (const double& yaw, const int& agent);
 			Matrix4x8	getControlGain(void);
 			
 

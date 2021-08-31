@@ -69,6 +69,9 @@ namespace DRONE {
 
 		geometry_msgs::PoseArray cmdArray;
 		drone_dev::BufferType bff;
+		// geometry_msgs::Twist cmdValueRepeat;
+
+		VectorQuat inputRepeat;
 		
 		long int count;
 		long int countEKF;
