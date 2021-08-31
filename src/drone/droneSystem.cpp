@@ -671,20 +671,19 @@ namespace DRONE {
 
 
 		if((drone.getIsFlagEnable())){
-				
-			if(flagMonitorSelect == false){ //Detects rising edge
+			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){ //makes sure a vicon message has arrived already
+
+				if(flagMonitorSelect == false){ //Detects rising edge
 				//Verifica se já houve alguma mudança alguma vez...novo
 				// if(network.getReuseEstimate()){
 				// 	cout << "faz algo" << endl;
 				// }
 				planner.setStartTime(ros::Time::now().toSec());
 				flagMonitorSelect = true;
-			}
-
-			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){ //makes sure a vicon message has arrived already
+				}
 
 				if(contaEnvio<1)
-					network.setTimeNext(network.getThisTimeSend()); 
+					network.getThisTimeSend();
 
 				// network.ComputeEstimation_identGlobal(); 				// Tries to compute an estimate (test with new formulation)
 				network.ComputeEstimation_identGlobal(); 				// Tries to compute an estimate
@@ -732,7 +731,7 @@ namespace DRONE {
 					network.setFlagReadyToSend(false);
 					network.setRcvArrayZero(); 				//Resets array for receiving new messages
 					network.setToken(true);					//Indicates to the network package that message has been sent already
-					network.setTimeNext(network.getThisTimeSend()); //debug
+					network.getThisTimeSend(); 				//debug
 					//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
 				} else	{
 					cmdValue.linear.x  = inputRepeat(0);

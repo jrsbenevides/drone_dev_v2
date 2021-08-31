@@ -88,7 +88,7 @@ namespace DRONE {
 		rcvArray = rcvArray.Zero();
 		rcvArrayBuffer = rcvArrayBuffer.Zero();
 		setZeroAllBuffers();
-		nextTimeToSend      = -1;
+		tGlobalSendCont      = -1;
 		flagEnter			= true;
 	}
 
@@ -299,51 +299,28 @@ namespace DRONE {
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	// double Estimator::getThisTimeSend(void){
-		
-	// 	double timeNow;
-
-	// 	timeNow = ros::Time::now().toSec();
-	// 	if(timeNow >= nextTimeToSend - updateRate*0.05){ //We passed already
-	// 		if(nextTimeToSend > 0){						//After every iteration
-	// 			nextTimeToSend += updateRate;
-	// 		} else if(nextTimeToSend == 0) { 			//Only on first iteration.
-	// 			nextTimeToSend = timeNow + updateRate;
-	// 		}
-	// 	}else{ //if we still didn't reach the next timeToSend
-	// 		if(flagSentToken == true){ //but if we already sent the message... 
-	// 			nextTimeToSend += updateRate; //...we should be working with timeToSend after this one
-	// 			setToken(false);  //flag of sent message disabled
-	// 		} 
-	// 	}
-	// 	if(nextTimeToSend>0){
-	// 		flagTickStart = true;
-	// 	}
-	// 	return nextTimeToSend;
-	// }
-
 	double Estimator::getThisTimeSend(void){
 		
 		double timeNow;
 
 		timeNow = ros::Time::now().toSec();
 
-		if(timeNow >= nextTimeToSend - updateRate*coeffUpdRate){ //We passed already
-			if(nextTimeToSend > 0){						//After every iteration
+		if(timeNow >= tGlobalSendCont - updateRate*coeffUpdRate){ //We passed already
+			if(tGlobalSendCont > 0){						//After every iteration
 				if(getToken() ==  true){
-					nextTimeToSend += updateRate; //Do no update next Time to Send unless previous message was already sent
+					tGlobalSendCont += updateRate; //Do no update next Time to Send unless previous message was already sent
 					setToken(false);
 				}
-			} else if(nextTimeToSend == 0) {			//Only on first iteration.
-				// nextTimeToSend = timeNow + updateRate;
-				nextTimeToSend = bfTemp[0].tsArrival + updateRate; // FOR MAS: CHANGE 0 TO FIRST MSG INDEX
+			} else if(tGlobalSendCont == 0) {			//Only on first iteration.
+				// tGlobalSendCont = timeNow + updateRate;
+				tGlobalSendCont = bfTemp[0].tsArrival + updateRate; // FOR MAS: CHANGE 0 TO FIRST MSG INDEX
 			}
 		}
 
-		if(nextTimeToSend>0){
+		if(tGlobalSendCont>0){
 			flagTickStart = true;
 		}
-		return nextTimeToSend;
+		return tGlobalSendCont;
 	}
 
 
@@ -527,7 +504,7 @@ namespace DRONE {
 		PI 					= 3.141592653589793;
    		t 			  		= 0.0;
 		stepT				= 1; //number of steps in integration
-		nextTimeToSend      = -1;
+		tGlobalSendCont      = -1;
 		K 					<<  1.74199, 0.94016, 1.54413, 0.89628, 3.34885, 3.29467, 6.51209, 3.92187;
 		Rotation 			= Rotation.Identity();
 
@@ -1571,7 +1548,7 @@ namespace DRONE {
 
 						// Initialize buffer during first loop
 						if(flagEnter){
-							nextTimeToSend  = 0;
+							tGlobalSendCont  = 0;
 							// for (int i = 0;i < nOfAgents ;i++){
 							// 	for (int j = 0;j < bfSize ;j++){
 							// 		for (int k = 0;k < 2 ;k++){
@@ -1707,7 +1684,7 @@ namespace DRONE {
 
 				// Initialize buffer during first loop
 				if(flagEnter){
-					nextTimeToSend  = 0;
+					tGlobalSendCont  = 0;
 					// for (int i = 0;i < nOfAgents ;i++){
 					// 	for (int j = 0;j < bfSize ;j++){
 					// 		for (int k = 0;k < 2 ;k++){

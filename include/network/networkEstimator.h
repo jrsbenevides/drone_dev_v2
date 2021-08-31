@@ -89,7 +89,8 @@ namespace DRONE {
 
 		int thrCompEstimation;
 
-	  	double stepT, nextTimeToSend, updateRate, coeffUpdRate;
+	  	double stepT, updateRate, coeffUpdRate;
+		volatile double nextTimeToSend;
 		double tGlobalSendCont;
 
 		double  dropProbability;
