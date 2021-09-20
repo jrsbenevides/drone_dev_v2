@@ -339,13 +339,16 @@ namespace DRONE {
 		//No use for NCS
 		// odom_subscriber 		 = n.subscribe<nav_msgs::Odometry>("/drone/odom", 1, &System::odomCallback, this);
 		cmd_vel_publisher 		 = n.advertise<geometry_msgs::Twist>("/drone/cmd_vel",1);
-		// transfPosition_publisher = n.advertise<nav_msgs::Odometry>("/drone/transf_position",1);
+		
 		// waypoint_subscriber 	 = n.subscribe<nav_msgs::Odometry>("/drone/waypoint", 1, &System::waypointCallback, this);
 		// orbslam_subscriber 	 	 = n.subscribe<nav_msgs::Odometry>("/scale/log", 1, &System::orbSlamCallback, this);
 		// vicon_subscriber 	 	 = n.subscribe<geometry_msgs::TransformStamped>("/vicon/bebop/bebop", 1, &System::viconCallback, this);
 		// targetMsg_subscriber 	 = n.subscribe<geometry_msgs::PoseStamped>("planejamento", 1, &System::planCallback, this);
 		// ackGlobal_subscriber     = n.subscribe<std_msgs::UInt8>("statusPlanning",1, &System::statusPlanCallback, this);
 		// ackControl_publisher 	 = n.advertise<std_msgs::UInt8>("statusAutoControl", 1);
+
+		waypoint_publisher 	  = n.advertise<nav_msgs::Odometry>("/drone/waypoint", 1);
+		transfPosition_publisher = n.advertise<nav_msgs::Odometry>("/drone/transf_position",1);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -541,6 +544,15 @@ namespace DRONE {
 		}
 	}	
 
+
+	/*DEBUG FUNCTION*/
+	double System::getTimeShifted(const double& timeValue){
+		double timeShifted;
+		timeShifted = timeValue - planner.getStartTime();
+		return timeShifted;
+	}
+
+
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: ncs (Networked Control System)
 	*	  Created by: jrsbenevides
@@ -648,6 +660,74 @@ namespace DRONE {
 	}		
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: updateTrajectory 
+	*	  Created by: jrsbenevides
+	*  Last Modified:
+	*
+	*  	 Description: 1. Gets the desired waypoint at that moment and stores it into global variable waypoint of the type Odometry
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	void System::updateTrajectory(const Vector12x1& wptVector){
+
+		//Position
+		waypoint.pose.pose.position.x 		= wptVector(0);
+		waypoint.pose.pose.position.y 		= wptVector(1);
+		waypoint.pose.pose.position.z 		= wptVector(2);
+		waypoint.pose.pose.orientation.w 	= wptVector(3);			
+
+		//Velocity
+		waypoint.pose.pose.orientation.x 	= wptVector(4);
+		waypoint.pose.pose.orientation.y 	= wptVector(5);				
+		waypoint.pose.pose.orientation.z 	= wptVector(6);
+		waypoint.twist.twist.linear.x 		= wptVector(7);
+
+		//Acceleration
+		waypoint.twist.twist.linear.y 		= wptVector(8);
+		waypoint.twist.twist.linear.z 		= wptVector(9);						
+		waypoint.twist.twist.angular.x 		= wptVector(10);
+		waypoint.twist.twist.angular.y 		= wptVector(11);
+	}
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: updateStateNow 
+	*	  Created by: jrsbenevides
+	*  Last Modified:
+	*
+	*  	 Description: 1. Gets the current state at that moment and stores it into global variable stateNow
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	void System::updateStateNow(const Vector8d& stateVector){
+
+		//reminder: Velocity,Position
+
+		//Velocity
+		stateNow.pose.pose.orientation.x 	= stateVector(0);
+		stateNow.pose.pose.orientation.y 	= stateVector(1);				
+		stateNow.pose.pose.orientation.z 	= stateVector(2);
+		stateNow.twist.twist.linear.x 		= stateVector(3);
+
+		//Position
+		stateNow.pose.pose.position.x 		= stateVector(4);
+		stateNow.pose.pose.position.y 		= stateVector(5);
+		stateNow.pose.pose.position.z 		= stateVector(6);
+		stateNow.pose.pose.orientation.w 	= stateVector(7);			
+
+	}
+
+
+	void System::printLogBuffer(void){
+		
+		cout << "\nLOG BUFFER:" << endl;
+		for(int i=0;i<_BFSIZE;i++){
+			cout << "position:" << i << endl;
+			cout << "tsArrival:" << getTimeShifted(network.bfStruct[0][i][0].tsArrival) << endl;
+			cout << "data:" << network.bfStruct[0][i][0].data << endl;
+		}
+	}
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: ncsVicon (Networked Control System)
 	*	  Created by: jrsbenevides
 	*  Last Modified:
@@ -663,12 +743,9 @@ namespace DRONE {
 		int agent;
 		VectorQuat input;
 		Vector12x1 vecDesired;
-		double tTempo;
-
-		
+		double tTempo, timeNow = ros::Time::now().toSec();
 
 		geometry_msgs::Twist cmdValue;
-
 
 		if((drone.getIsFlagEnable())){
 			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){ //makes sure a vicon message has arrived already
@@ -678,14 +755,20 @@ namespace DRONE {
 				// if(network.getReuseEstimate()){
 				// 	cout << "faz algo" << endl;
 				// }
-				planner.setStartTime(ros::Time::now().toSec());
+				planner.setStartTime(timeNow);
+				network.timeStart = timeNow;
 				flagMonitorSelect = true;
 				}
 
-				if(contaEnvio<1)
+				if(contaEnvio<1){
 					network.getThisTimeSend();
+				}
 
-				// network.ComputeEstimation_identGlobal(); 				// Tries to compute an estimate (test with new formulation)
+				//Debug
+				cout << "\nContagem: " << contaEnvio << endl;
+				cout << "Time Now: " << getTimeShifted(ros::Time::now().toSec()) << endl;
+				cout << "Time Next: " << getTimeShifted(network.getTimeNext()) << endl;
+
 				network.ComputeEstimation_identGlobal(); 				// Tries to compute an estimate
 
 				if(network.getFlagComputeControl()){		//Obtains K for this buffer interval
@@ -700,7 +783,10 @@ namespace DRONE {
 				if(agent>=0){
 					drone.setOrientationParameters(network.getCurrentYaw(agent),agent);
 					vecDesired = planner.getPlanTrajectory(agent,network.getThisTimeSend());
+					cout << "Pose Desejada:" << vecDesired.transpose() << endl;
+					updateTrajectory(vecDesired);
 					input = drone.MASControlInput(network.getEstimatePose(agent),vecDesired);
+					updateStateNow(network.getEstimatePose(agent));
 					cmdValue.linear.x  = input(0);
 					cmdValue.linear.y  = input(1);
 					cmdValue.linear.z  = input(2);
@@ -719,19 +805,24 @@ namespace DRONE {
 			
 				if(network.getFlagReadyToSend()){			//Publishes information to broadcast
 					contaEnvio++;
-					// cout << "\n###############################" << endl;
-					// cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
-					// cout << "###############################\n" << endl;
+					cout << "\n###############################" << endl;
+					cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
+					cout << "###############################\n" << endl;
 					cmd_vel_publisher.publish(cmdValue);
+					transfPosition_publisher.publish(stateNow);
+					waypoint_publisher.publish(waypoint);
 					tTempo = ros::Time::now().toSec();
 					network.setLastTimeSent(tTempo);
 					// network.pubMyLog(0); //If we want it to only pub the last message (as in identification, replace param 0 to bfSize-1)
 					// cout << "Levei " << ros::Time::now().toSec() - tTempo << " s para mandar essas mensagens" << endl;
+					cout << "Enviei, às " << getTimeShifted(tTempo) << " a mensagem, capturada no tempo " << getTimeShifted(network.bfStruct[0][4][0].tsArrival) << "\nE programada pra ser enviada em " << getTimeShifted(network.getTimeNext()) << endl;
+					printLogBuffer();
 					network.setFlagComputeControl(true);
 					network.setFlagReadyToSend(false);
-					network.setRcvArrayZero(); 				//Resets array for receiving new messages
+					network.setRcvArrayZeroTotal(); 		//Resets array for receiving new messages
 					network.setToken(true);					//Indicates to the network package that message has been sent already
 					network.getThisTimeSend(); 				//debug
+					cout << "\n\n###############################\n\n" << endl;
 					//devemos tratar as exceções. Caso tenha enviado mensagem sem ter computado input (foi com o input antigo) -> corrigir os valores de input corretos no buffer	
 				} else	{
 					cmdValue.linear.x  = inputRepeat(0);
@@ -745,12 +836,13 @@ namespace DRONE {
 				
 			}
 		} else{
-			if(flagMonitorSelect == true){ //Detects falling edge
+			if(flagMonitorSelect == true){ 					//Detects falling edge
 				network.ResetForEstimPause(); 				//Resets functions for an eventual new estimation
 				network.setReuseEstimate(true); 			//Informs the system that there was already an estimation
 				contaEnvio = 0;
 			}
 			flagMonitorSelect = false;
+			cout << "Time Now: " << getTimeShifted(ros::Time::now().toSec()) << endl;
 		}
 	}				
 

@@ -92,8 +92,11 @@ namespace DRONE {
 	  	double stepT, updateRate, coeffUpdRate;
 		volatile double nextTimeToSend;
 		double tGlobalSendCont;
+		int countRcvMsg;
 
 		double  dropProbability;
+
+		double timeStart;
 
 		Vector8d K;
 
@@ -173,6 +176,7 @@ namespace DRONE {
 		void 		setFlagReadyToSend(const bool& flag);
 		void 		setFlagComputeControl(const bool& flag);
 		void 		setRcvArrayZero(void);
+		void 		setRcvArrayZeroTotal(void);
 		void 		setCmdAgentDone(const int& agent, const Vector4d& input);
 		void 		setToken(const bool& flag);
 		void 		ResetForEstimPause(void);
@@ -214,6 +218,7 @@ namespace DRONE {
 		Matrix8d 	getKalmanP(void);
 		bool 		getToken(void);
 		double 		getCurrentYaw(const int& agent);
+		double 		getTimeShifted(const double& timeValue);
 		
 	};
 } // namespace DRONE

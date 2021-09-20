@@ -3,7 +3,10 @@
         "ostream": "cpp",
         "iostream": "cpp",
         "array": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "functional": "cpp",
+        "istream": "cpp",
+        "tuple": "cpp"
     },
     "cmake.configureOnOpen": false
 }

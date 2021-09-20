@@ -1654,8 +1654,8 @@ namespace DRONE {
 
 		xDesired	= qdVector.head(4);
 
-		dxDesired 	= qdVector.segment(3,4); //starting at index 3, a vector containing 4 elements;
-
+		// dxDesired 	= qdVector.segment(3,4); //starting at index 3, a vector containing 4 elements;
+		dxDesired 	= qdVector.segment(4,4); //starting at index 4, a vector containing 4 elements;
 		d2xDesired 	= qdVector.tail(4);
 
 		qDesired 			<< dxDesired, xDesired;	
@@ -1671,9 +1671,13 @@ namespace DRONE {
 		
 		u = Kgain*x;
 
+		cout << "u Nao Saturado: " << u.transpose() << endl;
+
 		input = F1.inverse()*(u + d2xDesired + F2*Rotation.transpose()*dxDesired);
 
 		inputSaturation(input);
+
+		cout << "u Saturado: " << input.transpose() << endl;
 			
 		return input;
 		

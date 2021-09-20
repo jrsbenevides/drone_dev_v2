@@ -68,6 +68,13 @@ namespace DRONE {
 		cout << "rcvArray reset and = " << rcvArray.transpose() << endl;
 	}
 
+	void Estimator::setRcvArrayZeroTotal(void){
+		for(int i=0;i<nOfAgents;i++){
+				rcvArray(i) = _EMPTY;
+		}
+		cout << "rcvArray reset and = " << rcvArray.transpose() << endl;
+	}
+
 	void Estimator::setCmdAgentDone(const int& agent, const VectorQuat& input){
 		rcvArray(agent) = _DONE;
 		bfStruct[agent][bfSize-1][0].upost = input;
@@ -215,6 +222,11 @@ namespace DRONE {
 	/* ###########################################################################################################################*/
 	/* ###########################################################################################################################*/
 
+
+	double Estimator::getTimeShifted(const double& timeValue){
+		return timeValue - timeStart;
+	}
+
 	bool Estimator::getToken(void){
 		return flagSentToken;
 	}
@@ -308,12 +320,20 @@ namespace DRONE {
 		if(timeNow >= tGlobalSendCont - updateRate*coeffUpdRate){ //We passed already
 			if(tGlobalSendCont > 0){						//After every iteration
 				if(getToken() ==  true){
+					cout << "Nova Computação de tNext..." << endl;
+					cout << "Antiga: " << getTimeShifted(tGlobalSendCont) <<  endl;
 					tGlobalSendCont += updateRate; //Do no update next Time to Send unless previous message was already sent
+					cout << "Nova: " << getTimeShifted(tGlobalSendCont) <<  endl;
+
 					setToken(false);
+					
 				}
 			} else if(tGlobalSendCont == 0) {			//Only on first iteration.
 				// tGlobalSendCont = timeNow + updateRate;
+				cout << "Nova Computação de tNext..." << endl;
+				cout << "Antiga: " << getTimeShifted(tGlobalSendCont) <<  endl;
 				tGlobalSendCont = bfTemp[0].tsArrival + updateRate; // FOR MAS: CHANGE 0 TO FIRST MSG INDEX
+				cout << "Nova: " << getTimeShifted(tGlobalSendCont) <<  endl;
 			}
 		}
 
@@ -392,9 +412,9 @@ namespace DRONE {
 
 		//ATTENTION: estimate x = [position;velocity];
 
-		// dt 		= timeNow - timePast;
+		dt 		= timeNow - timePast;
 		// cout << "Tempo de Kalman: " << dt << endl;
-		dt 		= 0.05;
+		// dt 		= 0.05;
 
 		A_kalman.block<4,4>(0,4) << dt,  0,  0,  0,
 									 0, dt,  0,  0,
@@ -561,6 +581,10 @@ namespace DRONE {
 
 		setZeroAllBuffers();
 		setLastTimeSent(0);
+
+
+		countRcvMsg = 0;
+		timeStart = ros::Time::now().toSec();
 	}	
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -805,22 +829,22 @@ namespace DRONE {
 		bfStruct[agent][0][0].index = curIndex + 1;
 		// cout << "Agora o agente eh " << agent << " e o pacote eh " << bfStruct[agent][0][0].index << endl; //DEBUG!!!
 
-		if(getFlagVicon()){ //If Vicon is selected, now is the time to compute velocity input
-			//To get velocity...now we will search in the current buffer
-			data 						<< bfStruct[agent][i][0].data;	
-			linearVel 					= DvKalman(data.tail(4),bfStruct[agent][i][0].tsSensor,bfStruct[agent][i][1].tsSensor);
-			cout << "Linear Velocity: " << linearVel << endl;
-			// RotNow << cos(data(7)), -sin(data(7)),0,
-			// 		  sin(data(7)),  cos(data(7)),0,
-			// 		  			 0,				0,1;
-			// data.head(4) 				<< Rot.transpose()*linearVel; //Transforming back to local 
-			data.head(4) 				<< linearVel; //Transforming back to local 
-			bfStruct[agent][i][0].data 	<< data;	
+		// if(getFlagVicon()){ //If Vicon is selected, now is the time to compute velocity input
+		// 	//To get velocity...now we will search in the current buffer
+		// 	data 						<< pkt.data;	
+		// 	linearVel 					= DvKalman(data.tail(4),bfStruct[agent][i][0].tsSensor,bfStruct[agent][i][1].tsSensor);
+		// 	cout << "Linear Velocity: " << linearVel << endl;
+		// 	// RotNow << cos(data(7)), -sin(data(7)),0,
+		// 	// 		  sin(data(7)),  cos(data(7)),0,
+		// 	// 		  			 0,				0,1;
+		// 	// data.head(4) 				<< Rot.transpose()*linearVel; //Transforming back to local 
+		// 	data.head(4) 				<< linearVel; //Transforming back to local 
+		// 	bfStruct[agent][i][0].data 	<< data;	
 
-			// if(i == (bfSize-1)){ //If this is the most recent message
-				setCurrentYaw(data(7),agent);
-			// }							
-		}
+		// 	// if(i == (bfSize-1)){ //If this is the most recent message
+		// 		setCurrentYaw(data(7),agent);
+		// 	// }							
+		// }
 
 		//Fills upre and upost with known input data
 		if(i>0){
@@ -1306,13 +1330,13 @@ namespace DRONE {
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	/* 		Function: ComputeEstimation
-	*	  Created by: jrsbenevides
-	*  Last Modified: 
-	*
-	*  	 Description: EKF Estimator for Networked Control System
-	*		   Steps: 	DEVO COLOCAR AQUI UNS CONDICIONAIS PRA SABER SE AS MENSAGENS JÁ CHEGARAM E SE JA PODE PROCESSAR, SENAO SO BYPASSA*/
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
+/* 		Function: ComputeEstimation
+*	  Created by: jrsbenevides
+*  Last Modified: 
+*
+*  	 Description: EKF Estimator for Networked Control System
+*		   Steps: 	DEVO COLOCAR AQUI UNS CONDICIONAIS PRA SABER SE AS MENSAGENS JÁ CHEGARAM E SE JA PODE PROCESSAR, SENAO SO BYPASSA*/
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
 
 	void Estimator::ComputeEstimation_identGlobal(void){
 		
@@ -1521,13 +1545,64 @@ namespace DRONE {
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
 
 	void Estimator::viconRcvCallback(const geometry_msgs::TransformStamped::ConstPtr& viconRaw){
+		
+		static int countVicon = 0;
+		static double timeOld;
+		static bool flagFirstVicon = true;
 
-		if(rcvViconFlag == false){
-			rcvViconFlag = true;
+		double yawOdom,yawThisFrame,timeNowStamp = ros::Time::now().toSec();
+		VectorQuat poseRcv,orientation,velocity;
+		Vector3axes rpy,positionNow;
+		int agent;
+
+		if(flagFirstVicon){
+			flagFirstVicon = false;
+			timeOld = timeNowStamp;
 		}
-		else{
-			rcvViconFlag = false;
+
+		positionNow		<< 	viconRaw->transform.translation.x, 
+							viconRaw->transform.translation.y, 
+							viconRaw->transform.translation.z;
+					
+		orientation 	<< 	viconRaw->transform.rotation.w, 
+							viconRaw->transform.rotation.x, 
+							viconRaw->transform.rotation.y, 
+							viconRaw->transform.rotation.z;
+
+
+		agent = 0; //REFAZER A LOGICA PARA REALMENTE LER O AGENTE EM QUESTAO
+
+		/*Reset frame location for this agent*/
+		if (!getIsOdomStarted(agent)) {   
+			cout << "######## Zeroing virtual coordinate frame" << endl;
+			Conversion::quat2angleZYX(rpy,orientation);
+			yawOdom = angles::normalize_angle(rpy(2));				//Added normalize...check if it works!!!
+			poseRcv << positionNow,yawOdom;
+			setPoseZero(poseRcv,agent);
+			setIsOdomStarted(true,agent);
+		}
+
+		//Based on initial pose, calculate transformed pose			
+		setPosition(positionNow,agent); //positionNow will be changed
+		//yawThisFrame is gonna be the current yaw value given the zero
+		setOrientationVicon(orientation,yawThisFrame,agent);
+
+		poseRcv << 	positionNow,
+					yawThisFrame;
+
+		velocity = DvKalman(poseRcv,timeNowStamp,timeOld);
+
+		setCurrentYaw(yawThisFrame,agent);
+
+		timeOld = timeNowStamp; //Updates last stamped time with current one. Note that timeOld is a static variable
+
+		if(countVicon % 5 == 0){
+			
+			countVicon = 1;
 			double randNumber;
+
+			countRcvMsg++;
+			cout << "Recebi a mensagem " << countRcvMsg << "em " << getTimeShifted(timeNowStamp) <<endl;
 
 			randNumber = ((double) rand() / (RAND_MAX));
 
@@ -1540,23 +1615,12 @@ namespace DRONE {
 					string agent;
 					int nAgent;
 					Buffer incomingMsg;
-					VectorQuat poseRcv,orientation,velocity;
-					Vector3axes rpy,positionNow;
-					double yawOdom,yawThisFrame;
 
 					if(isCMHEenabled == 1){
 
 						// Initialize buffer during first loop
 						if(flagEnter){
 							tGlobalSendCont  = 0;
-							// for (int i = 0;i < nOfAgents ;i++){
-							// 	for (int j = 0;j < bfSize ;j++){
-							// 		for (int k = 0;k < 2 ;k++){
-							// 				cout << "inicio = " << bfStruct[i][j][k].index << endl;
-							// 		}
-							// 	}
-							// }
-							// counter++;
 							flagEnter		= false;
 						}
 
@@ -1575,61 +1639,21 @@ namespace DRONE {
 						// cout << "\n-----------------------------------" << endl;
 						// cout << "Msg: Ag " <<  nAgent << ": RECEBIDO" << endl;
 
-						incomingMsg.tsArrival = ros::Time::now().toSec();
-						incomingMsg.tsSensor  = viconRaw->header.stamp.toSec(); //I believe that vicon does not provide a timestamp!
+						incomingMsg.tsArrival = timeNowStamp;
+						incomingMsg.tsSensor  = viconRaw->header.stamp.toSec(); 
 						// cout << "tempoArrival = " << incomingMsg.tsArrival << endl;
 						// cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
-						cout << "Tempo Decorrido: " << incomingMsg.tsArrival - incomingMsg.tsSensor << endl; //DEBUG
+						// cout << "Tempo Decorrido: " << incomingMsg.tsArrival - incomingMsg.tsSensor << endl; //DEBUG
 						incomingMsg.tGSendCont = 0;
 						//Fill Data
 
-						positionNow		<< 	viconRaw->transform.translation.x, 
-											viconRaw->transform.translation.y, 
-											viconRaw->transform.translation.z;
-											
-						orientation 	<< 	viconRaw->transform.rotation.w, 
-											viconRaw->transform.rotation.x, 
-											viconRaw->transform.rotation.y, 
-											viconRaw->transform.rotation.z;
-
-
-						velocity		<< 0,0,0,0; //This will be replaced for real data after computation in dvKalman in the buffer section.
-
-						/*Reset frame location for this agent*/
-						if (!getIsOdomStarted(nAgent)) {
-							cout << "######## Zeroing virtual coordinate frame" << endl;
-							Conversion::quat2angleZYX(rpy,orientation);
-							yawOdom = angles::normalize_angle(rpy(2));				//Added normalize...check if it works!!!
-							poseRcv << positionNow,yawOdom;
-							setPoseZero(poseRcv,nAgent);
-							setIsOdomStarted(true,nAgent);
-						}
-
-						//Based on initial pose, calculate transformed pose			
-						setPosition(positionNow,nAgent); //positionNow will be changed
-						// yawThisFrame = setOrientation(orientation,nAgent);
-						//Velocity is gonna be transformed from global to global
-						//yawThisFrame is gonna be the current yaw value given the zero
-						setOrientationVicon(orientation,yawThisFrame,nAgent);
-
-
-						// //To get velocity...now we will search in the current buffer
-						// setPosition(positionNow);
-						// positionNow		= drone.getPosition();
-						// linearVel 		= drone.DvKalman(positionNow,timeNow,timePast); //global terms instead of local (IMU)
-						
-						// setOrientation(orientationVicon);
-						// orientationNow	= drone.getOrientation();
-						// angularVel 		= drone.DwKalman(orientationNow,timeNow,timePast);									
-
-						//When it comes from odometry, velocity is local, thus we need to transform it: dvg = Rot*dvb	
-						
+						cout << "Received position: " << positionNow << endl;						
 						
 						incomingMsg.data << velocity,
 											positionNow,
 											yawThisFrame;
 
-						cout << "Received Message: " << incomingMsg.data << endl;
+						cout << "Transformed Received Message: " << incomingMsg.data << endl;
 
 						if(rcvArray(nAgent) == _EMPTY){
 							
@@ -1656,8 +1680,158 @@ namespace DRONE {
 				cout<< "################# DROPOUT!!!! " << endl;
 				lossCount++;
 			}
+		} else{
+			countVicon++;
 		}
 	}
+
+
+	// void Estimator::viconRcvCallback(const geometry_msgs::TransformStamped::ConstPtr& viconRaw){
+		
+	// 	static int countVicon = 0;
+	// 	double timeNowStamp = ros::Time::now().toSec();
+
+	// 	if(countVicon % 5 == 0){
+			
+	// 		countVicon = 1;
+	// 		double randNumber;
+
+	// 		countRcvMsg++;
+	// 		cout << "Recebi a mensagem " << countRcvMsg << "em " << getTimeShifted(timeNowStamp) <<endl;
+
+	// 		randNumber = ((double) rand() / (RAND_MAX));
+
+	// 		if((randNumber>dropProbability)||(lossCount>=nLossMax)){ 
+	// 			lossCount =0;
+	// 			//cout<< "Drop Prob: " << dropProbability << endl;
+	// 			//cout<< "rand() " << randNumber << endl;
+	// 			//cout<< "#################good" << endl;
+	// 			if(getIsFlagEnable()){
+	// 				string agent;
+	// 				int nAgent;
+	// 				Buffer incomingMsg;
+	// 				VectorQuat poseRcv,orientation,velocity;
+	// 				Vector3axes rpy,positionNow;
+	// 				double yawOdom,yawThisFrame;
+
+	// 				if(isCMHEenabled == 1){
+
+	// 					// Initialize buffer during first loop
+	// 					if(flagEnter){
+	// 						tGlobalSendCont  = 0;
+	// 						// for (int i = 0;i < nOfAgents ;i++){
+	// 						// 	for (int j = 0;j < bfSize ;j++){
+	// 						// 		for (int k = 0;k < 2 ;k++){
+	// 						// 				cout << "inicio = " << bfStruct[i][j][k].index << endl;
+	// 						// 		}
+	// 						// 	}
+	// 						// }
+	// 						// counter++;
+	// 						flagEnter		= false;
+	// 					}
+
+	// 					//Fill Header
+	// 					if(getFlagVicon()){
+	// 						nAgent =  0;
+	// 						incomingMsg.index = 0; 
+	// 						// cout << "ESTOU USANDO A VICON" << endl;
+	// 					} else{
+	// 						agent = viconRaw->header.frame_id; 
+	// 						nAgent =  atoi(agent.c_str());   
+	// 						incomingMsg.index = nAgent;
+	// 					}
+
+	// 					//DEBUG
+	// 					// cout << "\n-----------------------------------" << endl;
+	// 					// cout << "Msg: Ag " <<  nAgent << ": RECEBIDO" << endl;
+
+	// 					incomingMsg.tsArrival = timeNowStamp;
+	// 					incomingMsg.tsSensor  = viconRaw->header.stamp.toSec(); 
+	// 					// cout << "tempoArrival = " << incomingMsg.tsArrival << endl;
+	// 					// cout << "tempoSensor = " << incomingMsg.tsSensor << endl;
+	// 					// cout << "Tempo Decorrido: " << incomingMsg.tsArrival - incomingMsg.tsSensor << endl; //DEBUG
+	// 					incomingMsg.tGSendCont = 0;
+	// 					//Fill Data
+
+	// 					positionNow		<< 	viconRaw->transform.translation.x, 
+	// 										viconRaw->transform.translation.y, 
+	// 										viconRaw->transform.translation.z;
+											
+	// 					orientation 	<< 	viconRaw->transform.rotation.w, 
+	// 										viconRaw->transform.rotation.x, 
+	// 										viconRaw->transform.rotation.y, 
+	// 										viconRaw->transform.rotation.z;
+
+
+	// 					velocity		<< 0,0,0,0; //This will be replaced for real data after computation in dvKalman in the buffer section.
+
+	// 					cout << "Received position: " << positionNow << endl;
+
+	// 					/*Reset frame location for this agent*/
+	// 					if (!getIsOdomStarted(nAgent)) {
+	// 						cout << "######## Zeroing virtual coordinate frame" << endl;
+	// 						Conversion::quat2angleZYX(rpy,orientation);
+	// 						yawOdom = angles::normalize_angle(rpy(2));				//Added normalize...check if it works!!!
+	// 						poseRcv << positionNow,yawOdom;
+	// 						setPoseZero(poseRcv,nAgent);
+	// 						setIsOdomStarted(true,nAgent);
+	// 					}
+
+	// 					//Based on initial pose, calculate transformed pose			
+	// 					setPosition(positionNow,nAgent); //positionNow will be changed
+	// 					// yawThisFrame = setOrientation(orientation,nAgent);
+	// 					//Velocity is gonna be transformed from global to global
+	// 					//yawThisFrame is gonna be the current yaw value given the zero
+	// 					setOrientationVicon(orientation,yawThisFrame,nAgent);
+
+
+	// 					// //To get velocity...now we will search in the current buffer
+	// 					// setPosition(positionNow);
+	// 					// positionNow		= drone.getPosition();
+	// 					// linearVel 		= drone.DvKalman(positionNow,timeNow,timePast); //global terms instead of local (IMU)
+						
+	// 					// setOrientation(orientationVicon);
+	// 					// orientationNow	= drone.getOrientation();
+	// 					// angularVel 		= drone.DwKalman(orientationNow,timeNow,timePast);									
+
+	// 					//When it comes from odometry, velocity is local, thus we need to transform it: dvg = Rot*dvb	
+						
+						
+	// 					incomingMsg.data << velocity,
+	// 										positionNow,
+	// 										yawThisFrame;
+
+	// 					cout << "Transformed Received Message: " << incomingMsg.data << endl;
+
+	// 					if(rcvArray(nAgent) == _EMPTY){
+							
+	// 						// cout << "Status: RECEBIDO Buffer Principal" << endl; //DEBUG
+	// 						setBuffer(incomingMsg); //Save on main receive buffer
+	// 						rcvArray(nAgent) = _RECEIVED;
+
+	// 					} else {
+	// 						if(rcvArrayBuffer(nAgent) < _BUFMAXSIZE){
+	// 							// cout << "Status: RECEBIDO Buffer Pendente : Ag = " << nAgent << endl;
+	// 							setBufferNext(incomingMsg); 	//Save on pending receive buffer
+	// 							rcvArrayBuffer(nAgent)++; //This call HAS TO come after the set above
+	// 							// cout << "Pendente: " << rcvArrayBuffer.transpose() << endl;
+	// 						}
+	// 					}	
+
+	// 					// if(nAgent == 0){
+	// 					// 	cout << "Msg Recebida:" << odomRaw->pose.pose.position.x << " " << odomRaw->pose.pose.position.y << " " << odomRaw->pose.pose.position.z << endl;
+	// 					// }
+
+	// 				}
+	// 			}
+	// 		} else{
+	// 			cout<< "################# DROPOUT!!!! " << endl;
+	// 			lossCount++;
+	// 		}
+	// 	} else{
+	// 		countVicon++;
+	// 	}
+	// }
 
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

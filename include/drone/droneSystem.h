@@ -48,6 +48,8 @@ namespace DRONE {
 		ros::Publisher cmd_global_publisher;
 		ros::Publisher transfPosition_publisher;
 		ros::Publisher ackControl_publisher;
+		ros::Publisher waypoint_publisher;
+
 
 		ros::Subscriber odom_subscriber;
 		ros::Subscriber waypoint_subscriber;
@@ -67,8 +69,12 @@ namespace DRONE {
 		System();
 		~System ();
 
-		geometry_msgs::PoseArray cmdArray;
-		drone_dev::BufferType bff;
+		geometry_msgs::PoseArray 	cmdArray;
+		
+		nav_msgs::Odometry 			waypoint;
+		nav_msgs::Odometry 			stateNow;
+
+		drone_dev::BufferType 		bff;
 		// geometry_msgs::Twist cmdValueRepeat;
 
 		VectorQuat inputRepeat;
@@ -157,11 +163,16 @@ namespace DRONE {
 		void bootVicon(const double& timeValue);
 		void bootOrbSlam(const double& timeValue);
 		void testTimeout(void);
+		double getTimeShifted(const double& timeValue);
 		void ncs();
 		void ncsVicon();
 		void control();
 		void MAScontrol();
 		Vector4d MASControlInput(const int& agent);
+		void updateTrajectory(const Vector12x1& wptVector);
+		void updateStateNow(const Vector8d& stateVector);
+
+		void printLogBuffer(void);
 		
 	};		
 }

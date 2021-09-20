@@ -92,6 +92,7 @@ namespace DRONE {
 		bool getFlagGlobalPlanner(void);
 		bool getFlagAbort(void);
 		bool getFlagAckParam(void);
+		double getStartTime(void);
 		VectorFive getposeDesired(void);
 		void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
 		void planCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
