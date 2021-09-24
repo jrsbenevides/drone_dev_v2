@@ -358,12 +358,20 @@ namespace DRONE {
 	void Estimator::checkSendingConditions(void){
 		// Checks if it is ready to go timewise and based on starting condition
 
-		double tNow;
+		double tNow,tCompare;
 
 		tNow = ros::Time::now().toSec();
+		tCompare = tGlobalSendCont - updateRate*coeffUpdRate;
 		
 		if(flagTickStart == true){ //It means that tGlobalSendCont SHOULD have a meaningful computing value
-			if(tNow >= tGlobalSendCont - updateRate*coeffUpdRate){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
+			
+			// if(tNow > tCompare - 0.005){ //0.005 tá carteado, mas ta valendo...em caso de tuning, deve ser um valor menor q o updateRate do droneMain
+			// 	while(tNow < tCompare){
+			// 		tNow = ros::Time::now().toSec();
+			// 	}
+			// }
+			
+			if(tNow >= tCompare){ //Computation time,send, receiving and implementing = updateRate*0.1 = user definedlegalgeasdasdasdasdadadasdasdasdadasdadadadadadadadadad
 				
 				if((getToken() == false)&&(tNow - getLastTimeSent() > 0.3*updateRate)){
 					cout << "flagSentToken = false" << endl;
@@ -373,13 +381,6 @@ namespace DRONE {
 					setFlagReadyToSend(false);
 				}
 			}
-			// else {
-			// 	if(ros::Time::now().toSec() > tGlobalSendCont - updateRate){
-			// 		cout << "Ainda nao chegou e ta longe..." << endl;
-			// 		setFlagReadyToSend(false);
-			// 		flagSentToken = false;
-			// 	}
-			// }
 		}
 	}
 
@@ -1547,7 +1548,7 @@ namespace DRONE {
 	void Estimator::viconRcvCallback(const geometry_msgs::TransformStamped::ConstPtr& viconRaw){
 		
 		static int countVicon = 0;
-		static double timeOld;
+		static double timeOld,timeOldDebug;
 		static bool flagFirstVicon = true;
 
 		double yawOdom,yawThisFrame,timeNowStamp = ros::Time::now().toSec();
@@ -1621,6 +1622,7 @@ namespace DRONE {
 						// Initialize buffer during first loop
 						if(flagEnter){
 							tGlobalSendCont  = 0;
+							timeOldDebug = timeNowStamp; //DEBUG
 							flagEnter		= false;
 						}
 
@@ -1670,10 +1672,12 @@ namespace DRONE {
 							}
 						}	
 
+						cout << "Vicon Real UpdateRate: " << timeNowStamp - timeOldDebug << endl;
+
 						// if(nAgent == 0){
 						// 	cout << "Msg Recebida:" << odomRaw->pose.pose.position.x << " " << odomRaw->pose.pose.position.y << " " << odomRaw->pose.pose.position.z << endl;
 						// }
-
+						timeOldDebug = timeNowStamp; //DEBUG
 					}
 				}
 			} else{

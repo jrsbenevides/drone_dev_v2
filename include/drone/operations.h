@@ -34,6 +34,7 @@ namespace DRONE {
 		//Vector3d ecef2ned(Vector3d pe, Vector3d llh0);
 		void ecef2ned(Vector3d& pt, const Vector3d& pe, const Vector3d& llh0);
 		void c2d(Matrix8d& Adisc, Matrix8x4& Bdisc, const Matrix8d& Acont, const Matrix8x4& Bcont, double tS);
+		void c2dOptimal(Matrix8d& Adisc, Matrix8x4& Bdisc, const Matrix8d& Acont, const Matrix8x4& Bcont, double tS, int Nmax);
 	}
 } // namespace DRONE
 

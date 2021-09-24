@@ -70,6 +70,7 @@ namespace DRONE {
 		~System ();
 
 		geometry_msgs::PoseArray 	cmdArray;
+		geometry_msgs::Twist 		cmdValueGlobal;
 		
 		nav_msgs::Odometry 			waypoint;
 		nav_msgs::Odometry 			stateNow;

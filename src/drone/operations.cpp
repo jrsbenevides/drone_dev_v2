@@ -127,6 +127,33 @@ namespace DRONE {
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* 		Function: c2d - Optimized
+	*	  Created by: jrsbenevides
+	*  Last Modified: 
+	*
+	*  	 Description: 1. Computes Ad through Taylor Series' expansion of e^(AT) and Bd when A in non singular
+	*/
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
+
+	void Conversion::c2dOptimal(Matrix8d& Adisc,Matrix8x4& Bdisc,const Matrix8d& Acont,const Matrix8x4& Bcont, double tS, int Nmax){
+
+		Adisc 			= MatrixXd::Identity(8,8);
+		Matrix8d Bdaux 	= MatrixXd::Identity(8,8);
+		Matrix8d aux 	= MatrixXd::Identity(8,8);
+		double inv;
+
+		for(int i=1;i<=Nmax;i++)
+		{
+		   inv 		= (1/(double)i);
+		   aux 		*= inv*tS*Acont;
+		   Adisc 	+= aux;
+		   Bdaux 	+= (1/(double)(i+1))*aux;
+		}
+
+		Bdisc =  Bdaux*Bcont*tS;
+	}	
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/* 		Function: geodetic2ecef
 	*	  Created by: rsinoue
 	*  Last Modified: 

@@ -744,6 +744,7 @@ namespace DRONE {
 		VectorQuat input;
 		Vector12x1 vecDesired;
 		double tTempo, timeNow = ros::Time::now().toSec();
+		static bool flagManage = true;
 
 		geometry_msgs::Twist cmdValue;
 
@@ -751,22 +752,16 @@ namespace DRONE {
 			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){ //makes sure a vicon message has arrived already
 
 				if(flagMonitorSelect == false){ //Detects rising edge
-				//Verifica se já houve alguma mudança alguma vez...novo
-				// if(network.getReuseEstimate()){
-				// 	cout << "faz algo" << endl;
-				// }
-				planner.setStartTime(timeNow);
-				network.timeStart = timeNow;
-				flagMonitorSelect = true;
-				}
-
-				if(contaEnvio<1){
-					network.getThisTimeSend();
+					planner.setStartTime(timeNow);
+					network.timeStart = timeNow;
+					network.getThisTimeSend(); //first time
+					flagMonitorSelect = true;
 				}
 
 				//Debug
+				tTempo = ros::Time::now().toSec();
 				cout << "\nContagem: " << contaEnvio << endl;
-				cout << "Time Now: " << getTimeShifted(ros::Time::now().toSec()) << endl;
+				cout << "Time Now: " << getTimeShifted(tTempo) << endl;
 				cout << "Time Next: " << getTimeShifted(network.getTimeNext()) << endl;
 
 				network.ComputeEstimation_identGlobal(); 				// Tries to compute an estimate
@@ -787,12 +782,12 @@ namespace DRONE {
 					updateTrajectory(vecDesired);
 					input = drone.MASControlInput(network.getEstimatePose(agent),vecDesired);
 					updateStateNow(network.getEstimatePose(agent));
-					cmdValue.linear.x  = input(0);
-					cmdValue.linear.y  = input(1);
-					cmdValue.linear.z  = input(2);
-					cmdValue.angular.x = 0;            
-					cmdValue.angular.y = 0;            
-					cmdValue.angular.z = input(3);
+					cmdValueGlobal.linear.x  = input(0);
+					cmdValueGlobal.linear.y  = input(1);
+					cmdValueGlobal.linear.z  = input(2);
+					cmdValueGlobal.angular.x = 0;            
+					cmdValueGlobal.angular.y = 0;            
+					cmdValueGlobal.angular.z = input(3);
 					// cmdValueRepeat = cmdValue;
 					inputRepeat = input;
 					cout << "input: " << input.transpose() << endl;
@@ -808,7 +803,7 @@ namespace DRONE {
 					cout << "\n###############################" << endl;
 					cout << "####### Envio Pacote " <<  contaEnvio <<  " ########" << endl;
 					cout << "###############################\n" << endl;
-					cmd_vel_publisher.publish(cmdValue);
+					cmd_vel_publisher.publish(cmdValueGlobal);
 					transfPosition_publisher.publish(stateNow);
 					waypoint_publisher.publish(waypoint);
 					tTempo = ros::Time::now().toSec();
@@ -816,7 +811,7 @@ namespace DRONE {
 					// network.pubMyLog(0); //If we want it to only pub the last message (as in identification, replace param 0 to bfSize-1)
 					// cout << "Levei " << ros::Time::now().toSec() - tTempo << " s para mandar essas mensagens" << endl;
 					cout << "Enviei, às " << getTimeShifted(tTempo) << " a mensagem, capturada no tempo " << getTimeShifted(network.bfStruct[0][4][0].tsArrival) << "\nE programada pra ser enviada em " << getTimeShifted(network.getTimeNext()) << endl;
-					printLogBuffer();
+					// printLogBuffer();
 					network.setFlagComputeControl(true);
 					network.setFlagReadyToSend(false);
 					network.setRcvArrayZeroTotal(); 		//Resets array for receiving new messages
@@ -832,8 +827,7 @@ namespace DRONE {
 					cmdValue.angular.y = 0;            
 					cmdValue.angular.z = inputRepeat(3);
 					cmd_vel_publisher.publish(cmdValue);
-				}
-				
+				}	
 			}
 		} else{
 			if(flagMonitorSelect == true){ 					//Detects falling edge
