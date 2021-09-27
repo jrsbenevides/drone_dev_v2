@@ -1681,7 +1681,8 @@ namespace DRONE {
 					}
 				}
 			} else{
-				cout<< "################# DROPOUT!!!! " << endl;
+				// cout<< "Dropout at time:" << timeNowStamp << endl;
+				cout << "Dropout " << countRcvMsg << " em " << getTimeShifted(timeNowStamp) <<endl;
 				lossCount++;
 			}
 		} else{
