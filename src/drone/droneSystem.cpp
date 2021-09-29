@@ -749,8 +749,8 @@ namespace DRONE {
 		geometry_msgs::Twist cmdValue;
 
 		if((drone.getIsFlagEnable())){
-			if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){ //makes sure a vicon message has arrived already
-
+			// if((!network.getFlagEmergencyStop())&&(!network.getFlagEnter())){ //makes sure a vicon message has arrived already
+			if(!network.getFlagEnter()){ //Without EmergencyStop
 				if(flagMonitorSelect == false){ //Detects rising edge
 					planner.setStartTime(timeNow);
 					network.timeStart = timeNow;

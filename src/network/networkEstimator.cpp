@@ -521,11 +521,11 @@ namespace DRONE {
 		isCMHEenabled		= 0;
 		nOfAgents			= _NOFAGENTS;
 		bfSize              = _BFSIZE;
-		thrCompEstimation 	= 5000*bfSize;
+		thrCompEstimation 	= 50; //5000*bfSize;
 		PI 					= 3.141592653589793;
    		t 			  		= 0.0;
 		stepT				= 1; //number of steps in integration
-		tGlobalSendCont      = -1;
+		tGlobalSendCont     = -1;
 		K 					<<  1.74199, 0.94016, 1.54413, 0.89628, 3.34885, 3.29467, 6.51209, 3.92187;
 		Rotation 			= Rotation.Identity();
 
@@ -533,7 +533,7 @@ namespace DRONE {
 		loadSettings(n);
 
 		//Update Model
-		updateModel();
+		updateModel(0);
 
 
 		//dvKalman Zero
@@ -657,13 +657,11 @@ namespace DRONE {
 	*/
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	void Estimator::updateModel(void){
+	void Estimator::updateModel(const double& yaw){
 
 		Matrix4d Ac,Bc;
 
-		double sinyaw,cosyaw,yaw;
-
-		yaw = 0;
+		double sinyaw,cosyaw;
 
 		sinyaw = sin(yaw);
 		cosyaw = cos(yaw);
@@ -692,8 +690,8 @@ namespace DRONE {
 			 MatrixXd::Zero(4,4);
 
 		//DEBUG
-		cout << "A: " << A << endl;
-		cout << "B: " << B << endl;
+		// cout << "A: " << A << endl;
+		// cout << "B: " << B << endl;
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -973,6 +971,13 @@ namespace DRONE {
 		Matrix4d  R2d,S2d,A2d;
 		Matrix4x2 Hk2d,B2d;
 		Matrix2x4 K2d;
+
+
+		//Load q just to recover yaw angle
+		q << bfStruct[agent][bfSize-1][0].data;
+
+		//Update matrices A and B
+		updateModel(q(7)); //7 = index for last received yaw
 
 		A2d << 	A.block<2,2>(0,0),A.block<2,2>(0,4),
 				A.block<2,2>(4,0),A.block<2,2>(4,4);  //Block of size (p,q), starting at (i,j) 	matrix.block<p,q>(i,j);
@@ -1389,18 +1394,18 @@ namespace DRONE {
 					cout  << "Sucesso: Agente: " << agent << " e novo tamanho preenchido: " << bfStruct[agent][0][0].index << endl; //DEBUG!!! 
 					if(bfStruct[agent][0][0].index >= thrCompEstimation){ //Buffer is ready to estimate
 						if(bfStruct[agent][0][0].index == thrCompEstimation){ //%Initial guess for estimate
-							if(true){  //Initial guess will be skipped if there was already a prior estimation (was getReuseEstimate()==false)
+							// if(true){  //Initial guess will be skipped if there was already a prior estimation (was getReuseEstimate()==false)
 
-								estParam.block<2,1>(0,agent) << 1.0,
-																0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
-								genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
-								genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
-								genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
-								genParam[agent].sigmat = 0.02;	
-								cout << "PRIMEIRISSIMO ESTIMADO!!: " <<  estParam.block<2,1>(0,agent) << endl;
-							}else{
-								cout << "EU IGNOREI O PRIMEIRO LOOP DE INICIALIZACAO" << endl;
-							}
+							estParam.block<2,1>(0,agent) << 1.0,
+															0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
+							genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
+							genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
+							genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
+							genParam[agent].sigmat = 0.001;	
+							cout << "PRIMEIRISSIMO ESTIMADO!!: " <<  estParam.block<2,1>(0,agent) << endl;
+							// }else{
+							// 	cout << "EU IGNOREI O PRIMEIRO LOOP DE INICIALIZACAO" << endl;
+							// }
 						}
 						updateEKF_2D(agent);
 					}
@@ -1431,7 +1436,7 @@ namespace DRONE {
 					
 					tBar = tGlobalSendCont;
 					deltaT = (tBar - (sEst(0)*bfStruct[agent][bfSize-1][0].tsSensor + sEst(1)))/stepT;
-					Ak   = A;
+					Ak   = A; //DEBATE SE POR ACASO AQUI E EMBAIXO NAO DEVERIA SER sEst(0)*A e sEst(0)*B
 					Bk   = B;
 					x    = bfStruct[agent][bfSize-1][0].data;
 					uPre = bfStruct[agent][bfSize-1][0].upre;

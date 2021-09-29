@@ -162,7 +162,7 @@ namespace DRONE {
 		void 		updateEKF_2D(const int agent);
 		int 		nextAgentToCompute(void);
 		int 		nextAgentToSend(void);
-		void 		updateModel(void);
+		void 		updateModel(const double& yaw);
 		Vector2d 	isSinsideTrapezoid(const Vector2d& s, const Vector2d& sOld, const int& agent, const int& iter);
 		void 		PresentDebug(void);
 		void 		pubMyLog(const int& valStart);
