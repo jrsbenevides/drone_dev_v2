@@ -996,8 +996,8 @@ namespace DRONE {
 			q << bfStruct[agent][k][0].data;
 			q2d 	<< 	q.head(2),
 						q.segment(4,2); 
-			tBar = (1/s(0))*bfStruct[agent][k][0].tGSendCont - (s(1)/s(0));
-			deltaT = (tBar - bfStruct[agent][k][0].tsSensor)/stepT;
+			tBar = (1/s(0))*getTimeShifted(bfStruct[agent][k][0].tGSendCont) - (s(1)/s(0));
+			deltaT = (tBar - getTimeShifted(bfStruct[agent][k][0].tsSensor))/stepT;
 			Ak = s(0)*A;
 			Bk = s(0)*B;
 			x << q;
@@ -1008,7 +1008,7 @@ namespace DRONE {
 			}
 
 			// Dynamics update - PART 2 - From arrival to next sampling- Using uComp
-			deltaT = (bfStruct[agent][k+1][0].tsSensor - tBar)/stepT;
+			deltaT = (getTimeShifted(bfStruct[agent][k+1][0].tsSensor - tBar))/stepT;
 			uPost = bfStruct[agent][k][0].upost;
 			uPost2d << uPost.head(2);
 			for(int j = 0;j<stepT;j++){
@@ -1022,9 +1022,9 @@ namespace DRONE {
 			zk2d 	<< 	zk.head(2),
 						zk.segment(4,2);
 			// Hk parts: dh/d(alpha) = 
-			t1bar = bfStruct[agent][k][0].tsSensor;
-			t2bar = bfStruct[agent][k+1][0].tsSensor;
-			t1    = bfStruct[agent][k][0].tGSendCont;
+			t1bar = getTimeShifted(bfStruct[agent][k][0].tsSensor);
+			t2bar = getTimeShifted(bfStruct[agent][k+1][0].tsSensor);
+			t1    = getTimeShifted(bfStruct[agent][k][0].tGSendCont);
 			// dP/d(alpha) = AQUI TEM ESPAÇO PRA OTIMIZAR CODIGO!!
 			dPdAlpha = (t1 - s(1))*(t1bar + t2bar) - 2*s(0)*(t1bar*t2bar);
 			dPdBeta  = 2*(t1 - s(1))-s(0)*(t1bar + t2bar); 
@@ -1395,13 +1395,12 @@ namespace DRONE {
 					if(bfStruct[agent][0][0].index >= thrCompEstimation){ //Buffer is ready to estimate
 						if(bfStruct[agent][0][0].index == thrCompEstimation){ //%Initial guess for estimate
 							// if(true){  //Initial guess will be skipped if there was already a prior estimation (was getReuseEstimate()==false)
-
+							genParam[agent].t1     = getTimeShifted(bfStruct[agent][0][0].tsSensor);
+							genParam[agent].tn     = getTimeShifted(bfStruct[agent][bfSize-1][0].tsArrival);
+							genParam[agent].tnbar  = getTimeShifted(bfStruct[agent][bfSize-1][0].tsSensor);
 							estParam.block<2,1>(0,agent) << 1.0,
-															0.5*(bfStruct[agent][bfSize-1][0].tsArrival-bfStruct[agent][bfSize-1][0].tsSensor-bfStruct[agent][0][0].tsSensor);
-							genParam[agent].t1     = bfStruct[agent][0][0].tsSensor;
-							genParam[agent].tn     = bfStruct[agent][bfSize-1][0].tsArrival;
-							genParam[agent].tnbar  = bfStruct[agent][bfSize-1][0].tsSensor;
-							genParam[agent].sigmat = 0.001;	
+															0.5*(genParam[agent].tn-genParam[agent].tnbar-genParam[agent].t1);
+							genParam[agent].sigmat = 1e-6;	
 							cout << "PRIMEIRISSIMO ESTIMADO!!: " <<  estParam.block<2,1>(0,agent) << endl;
 							// }else{
 							// 	cout << "EU IGNOREI O PRIMEIRO LOOP DE INICIALIZACAO" << endl;
@@ -1432,7 +1431,7 @@ namespace DRONE {
 				if(bfStruct[agent][0][0].index > thrCompEstimation){ //Talvez aumentar o limiar para um valor maior que bfSize apresente um resultado melhor...quando estabilizar.
 					sEst << estParam.block<2,1>(0,agent);
 
-					cout << "Estimativa alpha, beta = " << sEst.transpose() << endl;
+					cout << "alpha = " << sEst(0) << " beta = " << sEst(1) << endl;
 					
 					tBar = tGlobalSendCont;
 					deltaT = (tBar - (sEst(0)*bfStruct[agent][bfSize-1][0].tsSensor + sEst(1)))/stepT;
@@ -1441,9 +1440,17 @@ namespace DRONE {
 					x    = bfStruct[agent][bfSize-1][0].data;
 					uPre = bfStruct[agent][bfSize-1][0].upre;
 
+					cout << "tBar = " << tGlobalSendCont << endl;
+					cout << "tsSensor = " << bfStruct[agent][bfSize-1][0].tsSensor << endl;
+
+					cout << "deltaT = " << deltaT << endl;
+					cout << "Ultimo dado = " << x.transpose() << endl;
+
 					for(int j = 0; j<stepT; j++){
 						x = (MatrixXd::Identity(8,8)+deltaT*Ak)*x + deltaT*Bk*uPre;
 					}
+
+					cout << "Predicao = " << x.transpose() << endl;
 				} else{
 					x     = bfStruct[agent][bfSize-1][0].data;
 					// uComp = bfStruct[agent][bfSize-1][0].upre;
