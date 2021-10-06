@@ -721,9 +721,12 @@ namespace DRONE {
 		
 		cout << "\nLOG BUFFER:" << endl;
 		for(int i=0;i<_BFSIZE;i++){
-			cout << "position:" << i << endl;
-			cout << "tsArrival:" << getTimeShifted(network.bfStruct[0][i][0].tsArrival) << endl;
-			cout << "data:" << network.bfStruct[0][i][0].data << endl;
+			cout << "position:" 	<< i << endl;
+			cout << "tsSensor:" 	<< getTimeShifted(network.bfStruct[0][i][0].tsSensor) << endl;
+			cout << "tsArrival:" 	<< getTimeShifted(network.bfStruct[0][i][0].tsArrival) << endl;
+			cout << "data:" 		<< network.bfStruct[0][i][0].data << endl;
+			cout << "upre:" 		<< network.bfStruct[0][i][0].upre << endl;
+			cout << "upost:" 		<< network.bfStruct[0][i][0].upost << endl;
 		}
 	}
 
@@ -811,7 +814,7 @@ namespace DRONE {
 					// network.pubMyLog(0); //If we want it to only pub the last message (as in identification, replace param 0 to bfSize-1)
 					// cout << "Levei " << ros::Time::now().toSec() - tTempo << " s para mandar essas mensagens" << endl;
 					cout << "Enviei, às " << getTimeShifted(tTempo) << " a mensagem, capturada no tempo " << getTimeShifted(network.bfStruct[0][4][0].tsArrival) << "\nE programada pra ser enviada em " << getTimeShifted(network.getTimeNext()) << endl;
-					// printLogBuffer();
+					printLogBuffer();
 					network.setFlagComputeControl(true);
 					network.setFlagReadyToSend(false);
 					network.setRcvArrayZeroTotal(); 		//Resets array for receiving new messages

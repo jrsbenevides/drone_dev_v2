@@ -1153,15 +1153,15 @@ namespace DRONE {
 		sNew = sOld;
 
 		// if((alpha >= 1 - genParam[agent].sigmat) && (alpha <= 1 + genParam[agent].sigmat)){ // 		%Alpha lies inside boundaries for alpha
-		// 	if((beta >= -alpha*genParam[agent].t1) && (beta <= genParam[agent].tn - alpha*genParam[agent].tnbar)){ //Beta lies inside boundaries for beta
+		// 	if((beta > getTimeShifted(bfStruct[agent][iter][0].tsArrival)-alpha*getTimeShifted(bfStruct[agent][iter+1][0].tsSensor)) && (beta < getTimeShifted(bfStruct[agent][iter][0].tsArrival)-alpha*getTimeShifted(bfStruct[agent][iter][0].tsSensor))){ //Beta lies inside boundaries for beta
 		// 		sNew = s;
 		// 	} 
-		// }
-		if((alpha >= 1 - genParam[agent].sigmat) && (alpha <= 1 + genParam[agent].sigmat)){ // 		%Alpha lies inside boundaries for alpha
-			if((beta > bfStruct[agent][iter][0].tsArrival-alpha*bfStruct[agent][iter+1][0].tsSensor) && (beta < bfStruct[agent][iter][0].tsArrival-alpha*bfStruct[agent][iter][0].tsSensor)){ //Beta lies inside boundaries for beta
-				sNew = s;
-			} 
-		}		
+		// }		
+		
+		if((beta > getTimeShifted(bfStruct[agent][iter][0].tsArrival)-alpha*getTimeShifted(bfStruct[agent][iter+1][0].tsSensor)) && (beta < getTimeShifted(bfStruct[agent][iter][0].tsArrival)-alpha*getTimeShifted(bfStruct[agent][iter][0].tsSensor))){ //Beta lies inside boundaries for beta
+			sNew(1) = s(1); //Updates beta only
+		} 
+
 		return sNew;
 	}
 
@@ -1349,7 +1349,7 @@ namespace DRONE {
 		// Declare and start local variables
 		bool status = false, flagExitSearch;
 		int agent = 0,tambuf;
-		double tBar, deltaT,tempValue;
+		double tBar, deltaT,tempValue,minVal,maxVal;
 		
 
 		Vector2d sEst;
@@ -1398,9 +1398,26 @@ namespace DRONE {
 							genParam[agent].t1     = getTimeShifted(bfStruct[agent][0][0].tsSensor);
 							genParam[agent].tn     = getTimeShifted(bfStruct[agent][bfSize-1][0].tsArrival);
 							genParam[agent].tnbar  = getTimeShifted(bfStruct[agent][bfSize-1][0].tsSensor);
-							estParam.block<2,1>(0,agent) << 1.0,
-															0.5*(genParam[agent].tn-genParam[agent].tnbar-genParam[agent].t1);
 							genParam[agent].sigmat = 1e-6;	
+							// estParam.block<2,1>(0,agent) << 1.0,
+															0.5*(genParam[agent].tn-genParam[agent].tnbar-genParam[agent].t1);
+							for(int i=0;i<bfSize-1;i++){
+								if(i==0){
+									minVal = bfStruct[agent][i][0].tsArrival-bfStruct[agent][i][0].tsSensor;
+									maxVal = bfStruct[agent][i][0].tsArrival-bfStruct[agent][i+1][0].tsSensor;
+								} else{
+									if(bfStruct[agent][i][0].tsArrival-bfStruct[agent][i][0].tsSensor < minVal){
+										minVal = bfStruct[agent][i][0].tsArrival-bfStruct[agent][i][0].tsSensor;
+									}
+									if(bfStruct[agent][i][0].tsArrival-bfStruct[agent][i+1][0].tsSensor > maxVal){
+										maxVal = bfStruct[agent][i][0].tsArrival-bfStruct[agent][i+1][0].tsSensor;
+									}
+								}
+							}	
+
+							estParam.block<2,1>(0,agent) << 1.0,
+															0.5*(minVal + maxVal);														
+							
 							cout << "PRIMEIRISSIMO ESTIMADO!!: " <<  estParam.block<2,1>(0,agent) << endl;
 							// }else{
 							// 	cout << "EU IGNOREI O PRIMEIRO LOOP DE INICIALIZACAO" << endl;
@@ -1433,8 +1450,8 @@ namespace DRONE {
 
 					cout << "alpha = " << sEst(0) << " beta = " << sEst(1) << endl;
 					
-					tBar = tGlobalSendCont;
-					deltaT = (tBar - (sEst(0)*bfStruct[agent][bfSize-1][0].tsSensor + sEst(1)))/stepT;
+					tBar = getTimeShifted(tGlobalSendCont);
+					deltaT = (tBar - (sEst(0)*getTimeShifted(bfStruct[agent][bfSize-1][0].tsSensor) + sEst(1)))/stepT;
 					Ak   = A; //DEBATE SE POR ACASO AQUI E EMBAIXO NAO DEVERIA SER sEst(0)*A e sEst(0)*B
 					Bk   = B;
 					x    = bfStruct[agent][bfSize-1][0].data;
@@ -1442,13 +1459,19 @@ namespace DRONE {
 
 					cout << "tBar = " << tGlobalSendCont << endl;
 					cout << "tsSensor = " << bfStruct[agent][bfSize-1][0].tsSensor << endl;
+					cout << "uPre = " << uPre << endl;
 
 					cout << "deltaT = " << deltaT << endl;
 					cout << "Ultimo dado = " << x.transpose() << endl;
 
-					for(int j = 0; j<stepT; j++){
-						x = (MatrixXd::Identity(8,8)+deltaT*Ak)*x + deltaT*Bk*uPre;
+					if(tGlobalSendCont > ros::Time::now().toSec()){
+						for(int j = 0; j<stepT; j++){
+							x = (MatrixXd::Identity(8,8)+deltaT*Ak)*x + deltaT*Bk*uPre;	
+						}
+					} else{
+						cout << "Tempo de envio já passou!" << endl;
 					}
+
 
 					cout << "Predicao = " << x.transpose() << endl;
 				} else{
