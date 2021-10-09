@@ -179,7 +179,7 @@ nOfAgents: 1
 bfSize: 5
 
 # Defines dropout Probability on incoming message (VICON): A double between 0 and 1
-dropProbability: 0.4
+dropProbability: 0.1
 
 # Defines maximum number consecutive packet dropouts in a row (works for one agent only)
-nLossMax: 2000
+nLossMax: 2
